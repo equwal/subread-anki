@@ -1,171 +1,474 @@
 package space.subread.anki
 
+import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Typeface
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.SystemClock
+import android.text.Html
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.BackgroundColorSpan
+import android.text.style.UnderlineSpan
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import space.subread.anki.core.MineRequest
-import space.subread.anki.core.Sentences
+import space.subread.anki.core.Scan
+import space.subread.anki.core.Scans
+import java.io.File
+import java.io.FileInputStream
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import kotlin.concurrent.thread
 
 /**
- * The one way in. It takes the request from the Intent, has [Miner] fill and add the card,
- * says what happened in a toast, and closes. It draws nothing: the app below stays in view.
+ * The pop-up. It takes a text the way a dictionary does: from the text selection menu of any
+ * app, the share sheet, another app, or a link. It shows the text, the terms of SubRead
+ * Dictionary at the word, and a "+ Anki" button for each term. A tap on a character of the
+ * text moves the word there. The card gets the term, the sentence around the word, and the
+ * picture and the sound of the moment the text came in.
  *
- * The result for a caller that started it for one: `RESULT_OK` with
- * [Requests.EXTRA_NOTE_ID], or `RESULT_CANCELED` with [Requests.EXTRA_ERROR].
+ * A request that brings its own definition, or the setting "add at once", makes the card with
+ * no pop-up: the window stays clear, and a toast says what happened.
+ *
+ * The result for a caller that started it for one: `RESULT_OK` with [Requests.EXTRA_NOTE_ID]
+ * of the last card, or `RESULT_CANCELED` with [Requests.EXTRA_ERROR].
  */
 class AddActivity : Activity() {
 
     private lateinit var store: Store
-    private var pending: MineRequest? = null
-    private var addedNoteId: Long? = null
+    private lateinit var miner: Miner
+
+    /** One thread for the media and the cards, in order: a card waits for the media of its text. */
+    private val work: ExecutorService = Executors.newSingleThreadExecutor()
+    private var request = MineRequest()
+    private var grab: Future<Miner.Grab>? = null
+
+    /** A card to add with no pop-up, once AnkiDroid allows it. */
+    private var pending: Scan? = null
+    private var text = ""
+    private var generation = 0
+    private var player: MediaPlayer? = null
+    private lateinit var textView: TextView
+    private lateinit var status: TextView
+    private lateinit var results: LinearLayout
+
+    /** The "+ Anki" button of each term on the screen, with its expression. */
+    private val addButtons = ArrayList<Pair<String, Button>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        // The screen of this moment, before a window of this app draws: the app that sent the text.
+        val shot: Bitmap? = CaptureService.instance?.snapshot()
+        val grabbedAt = SystemClock.elapsedRealtimeNanos()
         store = Store(this)
-        val request = Requests.fromIntent(intent)
-        if (request == null || (request.isEmpty && request.image == null)) {
+        val parsed = Requests.fromIntent(intent)
+        val pictureOnly = parsed != null && parsed.isEmpty && parsed.image != null
+        val popup = parsed != null && !parsed.isEmpty && !addsAtOnce(parsed)
+        // Without the pop-up, the window stays empty and clear.
+        if (!popup) setTheme(android.R.style.Theme_Translucent_NoTitleBar)
+        super.onCreate(savedInstanceState)
+        miner = Miner(this)
+        if (parsed == null || (parsed.isEmpty && !pictureOnly)) {
             toast(getString(R.string.no_text))
-            finishWith(null, "empty")
+            finishWith("empty")
             return
         }
+        request = parsed
         if (AnkiClient.packageName(this) == null) {
             toast(getString(R.string.anki_missing))
             startActivity(Intent(this, MainActivity::class.java))
-            finishWith(null, "no_ankidroid")
+            finishWith("no_ankidroid")
             return
         }
-        if (!AnkiClient.hasPermission(this)) {
-            pending = request
-            requestPermissions(arrayOf(AnkiClient.PERMISSION), PERMISSION)
+        val image = parsed.image
+        if (pictureOnly && image != null) {
+            work.execute { finishAfter(runCatching { miner.attachPicture(image) }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }) }
             return
         }
-        start(request)
+        val overlay = if (parsed.sentence.isNullOrBlank()) OverlayClient.now(this) else null
+        val scan = Scans.resolve(parsed.expression, parsed.sentence, overlay?.line?.text) ?: run {
+            finishWith("empty")
+            return
+        }
+        val line = if (scan.fromLine) overlay else null
+        val source = parsed.source ?: sourceName(line?.player)
+        grab = work.submit(Callable { miner.grab(parsed, shot, grabbedAt, line, source) })
+        val allowed = AnkiClient.hasPermission(this)
+        if (!allowed) requestPermissions(arrayOf(AnkiClient.PERMISSION), PERMISSION)
+        if (!popup) {
+            if (allowed) addAtOnce(scan) else pending = scan
+            return
+        }
+        draw()
+        show(scan)
+        work.execute {
+            val grabbed = runCatching { grab?.get() }.getOrNull()
+            val deck = runCatching { AnkiClient(this).deckName() }.getOrDefault(AnkiClient.DECK_NAME)
+            runOnUiThread { if (!isFinishing && grabbed != null) status.text = statusLine(grabbed, deck) }
+        }
     }
+
+    /** True when the card goes to Anki with no pop-up. */
+    private fun addsAtOnce(r: MineRequest): Boolean =
+        r.confirm == false || (r.confirm == null && (r.definition != null || store.addAtOnce))
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val request = pending ?: return
+        val scan = pending
         pending = null
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            start(request)
+            if (scan != null) addAtOnce(scan)
         } else {
             toast(getString(R.string.anki_no_permission))
-            finishWith(null, "no_permission")
+            if (scan != null) finishWith("no_permission")
         }
     }
 
-    private fun start(request: MineRequest) {
-        val image = request.image
-        if (request.isEmpty && image != null) {
-            // A picture alone: for the last card.
-            thread {
-                val result = runCatching { Miner(this).attachPicture(image) }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }
-                runOnUiThread { report(result) }
-            }
-            return
-        }
-        thread {
-            val plan = runCatching { Miner(this).prepare(request) }.getOrElse { e ->
-                runOnUiThread { report(Miner.Result.Failed(e.message ?: e.toString())) }
-                return@thread
-            }
-            runOnUiThread {
-                if (isFinishing) return@runOnUiThread
-                if (request.confirm ?: store.confirm) confirm(plan) else commit(plan, plan.entries.firstOrNull())
-            }
+    override fun onDestroy() {
+        player?.release()
+        player = null
+        work.shutdown()
+        super.onDestroy()
+    }
+
+    /** The card with no pop-up: the definition of the request, else the first term at the word. */
+    private fun addAtOnce(scan: Scan) {
+        work.execute {
+            val result = runCatching {
+                val word = scan.word
+                val card = if (request.definition != null) {
+                    if (word != null && scan.offset >= 0) Miner.card(request, scan.text, scan.offset, word.length, null)
+                    else Miner.card(request, scan.text, -1, 0, null)
+                } else if (scan.offset >= 0) {
+                    val entry = DictionaryClient.lookup(this, scan.text, scan.offset).firstOrNull()
+                    if (entry != null) {
+                        Miner.card(request, scan.text, scan.offset, entry.length, entry)
+                    } else {
+                        val range = Miner.wordAt(scan.text, scan.offset, selected = isSelection(scan.text, scan.offset))
+                        Miner.card(request, scan.text, range.first, range.count(), null)
+                    }
+                } else {
+                    Miner.card(request, scan.text, -1, 0, DictionaryClient.lookup(this, word.orEmpty()).firstOrNull())
+                }
+                miner.add(grab!!.get(), card)
+            }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }
+            finishAfter(result)
         }
     }
 
-    /** Shows the sentence and the terms of the dictionary; the user picks one and adds. */
-    private fun confirm(plan: Miner.Plan) {
-        var chosen = 0
-        val media = getString(
-            R.string.confirm_media,
-            yesNo(plan.sentenceAudio != null), yesNo(plan.image != null), yesNo(plan.entries.firstOrNull()?.audio != null),
-        )
-        val builder = AlertDialog.Builder(this)
-            .setTitle(plan.sentence ?: plan.selection ?: getString(R.string.confirm_title))
-            .setPositiveButton(R.string.confirm_add) { _, _ -> commit(plan, plan.entries.getOrNull(chosen)) }
-            .setNegativeButton(R.string.confirm_cancel) { _, _ -> finishWith(null, "cancelled") }
-            .setOnCancelListener { finishWith(null, "cancelled") }
-        if (plan.entries.isEmpty()) {
-            builder.setMessage((plan.selection ?: getString(R.string.confirm_sentence_only)) + "\n\n" + media)
-        } else {
-            val labels = plan.entries.map { it.headword + "\n" + Sentences.unescape(Sentences.stripTags(it.glossary.replace("<br>", " "))).take(80) }
-            builder.setSingleChoiceItems((labels + media).toTypedArray(), 0) { dialog, i ->
-                // The last line says what media the card has: it is not a choice.
-                if (i < labels.size) chosen = i else (dialog as AlertDialog).listView.setItemChecked(chosen, true)
-            }
-        }
-        builder.show()
-    }
+    /** True for the first scan of a text that is the selection itself: the user chose the ends of the word. */
+    private fun isSelection(text: String, at: Int): Boolean = at == 0 && text == request.expression?.trim()
 
-    private fun commit(plan: Miner.Plan, entry: DictionaryClient.Entry?) {
-        thread {
-            val result = runCatching { Miner(this).add(plan, entry) }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }
-            runOnUiThread { report(result) }
-        }
-    }
-
-    private fun report(result: Miner.Result) {
+    /** From the work thread: says what happened, and closes. */
+    private fun finishAfter(result: Miner.Result) = runOnUiThread {
         when (result) {
             is Miner.Result.Added -> {
-                toast(if (result.expression.isEmpty()) getString(R.string.added_sentence) else getString(R.string.added, result.expression))
-                if (store.openDictionary && result.expression.isNotEmpty() && DictionaryClient.installed(this)) {
-                    addedNoteId = result.noteId
-                    openDictionary(result.expression)
-                } else {
-                    finishWith(result.noteId, null)
-                }
+                toast(getString(R.string.added, result.expression))
+                setResult(RESULT_OK, Intent().putExtra(Requests.EXTRA_NOTE_ID, result.noteId))
+                finish()
             }
             is Miner.Result.Duplicate -> {
                 toast(getString(R.string.duplicate, result.expression))
-                finishWith(null, "duplicate")
+                finishWith("duplicate")
             }
             Miner.Result.Attached -> {
                 toast(getString(R.string.picture_attached))
-                finishWith(null, null)
+                finishWith(null)
             }
             is Miner.Result.Failed -> {
                 toast(getString(R.string.failed, result.why))
-                finishWith(null, result.why)
+                finishWith(result.why)
             }
         }
     }
 
-    /** Opens the pop-up of SubRead Dictionary over the app, and closes when it closes. */
-    @Suppress("DEPRECATION") // The result API of AndroidX would bring AppCompat in for one call.
-    private fun openDictionary(text: String) {
-        val intent = Intent(DICTIONARY_LOOKUP).setPackage(DictionaryClient.PACKAGE).putExtra(Intent.EXTRA_TEXT, text)
-        runCatching { startActivityForResult(intent, DICTIONARY) }.onFailure { finishWith(addedNoteId, null) }
+    /** Where the text is from: the player of the subtitle line, else the app that sent the text. */
+    private fun sourceName(player: String?): String {
+        val sender = player ?: referrer?.takeIf { it.scheme == "android-app" }?.host
+        if (sender == null || sender == packageName || sender.startsWith(OverlayClient.PACKAGE)) return ""
+        return runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(sender, 0)).toString() }.getOrDefault("")
     }
 
-    @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == DICTIONARY) finishWith(addedNoteId, null)
-    }
+    // The pop-up. The same frame as the pop-up of SubRead Dictionary: a panel at the bottom,
+    // over the app that sent the text, black on white, nothing that moves.
 
-    private fun finishWith(noteId: Long?, error: String?) {
-        if (noteId != null) {
-            setResult(RESULT_OK, Intent().putExtra(Requests.EXTRA_NOTE_ID, noteId))
-        } else {
-            setResult(RESULT_CANCELED, Intent().putExtra(Requests.EXTRA_ERROR, error.orEmpty()))
+    // The touch listener finds the character under the finger; it calls performClick itself.
+    @SuppressLint("ClickableViewAccessibility")
+    private fun draw() {
+        val height = (resources.displayMetrics.heightPixels * 0.6).toInt()
+        window.attributes = window.attributes.apply {
+            width = ViewGroup.LayoutParams.MATCH_PARENT
+            this.height = height
+            gravity = Gravity.BOTTOM
         }
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        textView = TextView(this).apply {
+            textSize = TEXT_SP + 3
+            setTextColor(Color.BLACK)
+            maxLines = 5
+            setPadding(dp(16), dp(4), dp(16), dp(4))
+            setOnTouchListener { view, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
+                    val at = (view as TextView).getOffsetForPosition(event.x, event.y)
+                    if (at in text.indices) scanAt(at)
+                    view.performClick()
+                }
+                true
+            }
+        }
+        status = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.DKGRAY)
+            setPadding(dp(16), 0, dp(16), dp(8))
+            text = "…"
+        }
+        results = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), 0, dp(16), dp(16))
+        }
+        val bar = LinearLayout(this).apply {
+            gravity = Gravity.END
+            addView(smallButton(getString(R.string.settings)) { startActivity(Intent(this@AddActivity, MainActivity::class.java)) })
+            addView(smallButton(getString(R.string.close)) { finish() })
+        }
+        setContentView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.WHITE)
+                addView(bar, LinearLayout.LayoutParams(-1, -2))
+                addView(textView, LinearLayout.LayoutParams(-1, -2))
+                addView(status, LinearLayout.LayoutParams(-1, -2))
+                addView(View(this@AddActivity).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)))
+                addView(ScrollView(this@AddActivity).apply { addView(results) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            },
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height),
+        )
+    }
+
+    private fun show(scan: Scan) {
+        text = scan.text
+        textView.text = text
+        if (scan.offset >= 0) scanAt(scan.offset) else lookUpWord(scan.word.orEmpty())
+    }
+
+    /** Looks up the terms that start at [at] in the text. */
+    private fun scanAt(at: Int) {
+        val run = ++generation
+        mark(null)
+        thread {
+            val found = DictionaryClient.lookup(this, text, at)
+            runOnUiThread { if (run == generation && !isFinishing) showTerms(found, at) }
+        }
+    }
+
+    /** The word of the sender is not in the text: its terms, with nothing marked. */
+    private fun lookUpWord(word: String) {
+        val run = ++generation
+        thread {
+            val found = DictionaryClient.lookup(this, word)
+            runOnUiThread { if (run == generation && !isFinishing) showTerms(found, -1) }
+        }
+    }
+
+    /** One block for each term. [at] is where the terms start in the text, -1 when not in it. */
+    private fun showTerms(found: List<DictionaryClient.Entry>, at: Int) {
+        results.removeAllViews()
+        addButtons.clear()
+        if (found.isEmpty()) {
+            // No dictionary, or no term here: the word at the tap goes on the card as it is.
+            val range = if (at >= 0) Miner.wordAt(text, at, selected = isSelection(text, at)) else IntRange.EMPTY
+            if (at >= 0) mark(range)
+            note(getString(if (DictionaryClient.answers(this)) R.string.no_term else R.string.no_dictionary), Color.DKGRAY, TEXT_SP - 3)
+            val word = if (at >= 0) text.substring(range.first, range.last + 1) else request.expression.orEmpty()
+            term(word, null, if (at >= 0) range.first else -1, range.count())
+            return
+        }
+        if (at >= 0) mark(at until at + found.first().length)
+        for (entry in found) term(entry.headword, entry, at, entry.length)
+        markInAnki(found)
+    }
+
+    private fun term(headword: String, entry: DictionaryClient.Entry?, start: Int, length: Int) {
+        results.addView(View(this).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(10) })
+        val add = Button(this).apply {
+            text = getString(R.string.add_card)
+            isAllCaps = false
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
+            setOnClickListener { addCard(this, entry, start, length) }
+        }
+        addButtons += (entry?.expression ?: headword) to add
+        results.addView(
+            LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(this@AddActivity).apply {
+                    text = headword
+                    textSize = TEXT_SP + 5
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Color.BLACK)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                if (entry?.audio != null) addView(smallButton("▶") { play(entry) })
+                addView(add)
+            },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) },
+        )
+        if (entry == null) return
+        val meta = listOf(entry.reasons, entry.frequency, entry.pitch).filter { it.isNotEmpty() }
+        if (meta.isNotEmpty()) note(meta.joinToString("   "), Color.DKGRAY, TEXT_SP - 3)
+        results.addView(
+            TextView(this).apply {
+                text = Html.fromHtml(entry.glossary, Html.FROM_HTML_MODE_COMPACT)
+                textSize = TEXT_SP
+                setTextColor(Color.BLACK)
+                movementMethod = LinkMovementMethod.getInstance()
+            },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) },
+        )
+    }
+
+    /** One tap: the card goes to AnkiDroid. The button says when it is there. */
+    private fun addCard(button: Button, entry: DictionaryClient.Entry?, start: Int, length: Int) {
+        val grabbed = grab ?: return
+        button.isEnabled = false
+        button.text = "…"
+        val card = Miner.card(request, text, start, length, entry)
+        work.execute {
+            val result = runCatching { miner.add(grabbed.get(), card) }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }
+            runOnUiThread {
+                when (result) {
+                    is Miner.Result.Added -> {
+                        button.text = getString(R.string.added_short)
+                        setResult(RESULT_OK, Intent().putExtra(Requests.EXTRA_NOTE_ID, result.noteId))
+                    }
+                    is Miner.Result.Duplicate -> button.text = getString(R.string.in_anki)
+                    is Miner.Result.Failed -> {
+                        button.isEnabled = true
+                        button.text = getString(R.string.add_card)
+                        toast(getString(R.string.failed, result.why))
+                    }
+                    Miner.Result.Attached -> Unit
+                }
+            }
+        }
+    }
+
+    /** A term that is in the deck already gets "In Anki" in place of "+ Anki". */
+    private fun markInAnki(found: List<DictionaryClient.Entry>) {
+        if (!store.skipDuplicates || !AnkiClient.hasPermission(this)) return
+        val run = generation
+        thread {
+            val anki = AnkiClient(this)
+            val inAnki = found.map { it.expression }.distinct().filter { runCatching { anki.inAnki(it) }.getOrDefault(false) }.toSet()
+            runOnUiThread {
+                if (run != generation) return@runOnUiThread
+                for ((expression, button) in addButtons) {
+                    if (expression in inAnki) {
+                        button.isEnabled = false
+                        button.text = getString(R.string.in_anki)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Marks the word in the text; null clears the mark. */
+    private fun mark(range: IntRange?) {
+        val shown = SpannableString(text)
+        if (range != null && !range.isEmpty() && range.last < text.length) {
+            shown.setSpan(BackgroundColorSpan(0xFFFFE082.toInt()), range.first, range.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            // The underline stays visible on an e-ink screen, where the colour is a light grey.
+            shown.setSpan(UnderlineSpan(), range.first, range.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        textView.text = shown
+    }
+
+    /** What the card gets besides the term: the picture, the sound, and the deck. */
+    private fun statusLine(grabbed: Miner.Grab, deck: String): String {
+        val parts = ArrayList<String>()
+        val captureOff = CaptureService.instance == null
+        if (captureOff && grabbed.picture == null && grabbed.sentenceAudio == null) {
+            parts += getString(R.string.status_capture_off)
+        } else {
+            parts += getString(if (grabbed.picture != null) R.string.status_picture else R.string.status_no_picture)
+            val ms = grabbed.soundMs
+            parts += when {
+                grabbed.sentenceAudio == null -> getString(R.string.status_no_sound)
+                ms != null -> getString(R.string.status_sound_seconds, "%.1f".format(ms / 1000.0))
+                else -> getString(R.string.status_sound)
+            }
+        }
+        parts += getString(R.string.deck_current, deck)
+        return parts.joinToString("   ")
+    }
+
+    /** Plays the audio of the word from the dictionary. */
+    private fun play(entry: DictionaryClient.Entry) {
+        val ask = entry.audio ?: return
+        thread {
+            val bytes = DictionaryClient.audio(this, ask)
+            runOnUiThread {
+                if (bytes == null) {
+                    toast(getString(R.string.no_audio))
+                    return@runOnUiThread
+                }
+                player?.release()
+                val file = File(cacheDir, "play.tmp").apply { writeBytes(bytes) }
+                player = runCatching {
+                    MediaPlayer().apply {
+                        FileInputStream(file).use { setDataSource(it.fd) }
+                        prepare()
+                        start()
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+
+    private fun finishWith(error: String?) {
+        setResult(RESULT_CANCELED, Intent().putExtra(Requests.EXTRA_ERROR, error.orEmpty()))
         finish()
     }
 
-    private fun yesNo(value: Boolean) = getString(if (value) R.string.yes else R.string.no)
+    private fun note(value: String, color: Int, size: Float) = results.addView(
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+        },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) },
+    )
+
+    private fun smallButton(label: String, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        isAllCaps = false
+        textSize = 13f
+        setOnClickListener { onClick() }
+    }
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
     companion object {
         private const val PERMISSION = 1
-        private const val DICTIONARY = 2
-        const val DICTIONARY_LOOKUP = "space.subread.dictionary.LOOKUP"
+
+        /** The text size of the pop-up, in sp: the same as SubRead Dictionary. */
+        private const val TEXT_SP = 17f
     }
 }

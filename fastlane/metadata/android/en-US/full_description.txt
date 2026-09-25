@@ -1,13 +1,13 @@
-SubRead Anki makes an Anki card with one tap: the word, its reading and definition, the sentence it is in, the sound of that sentence, and a picture of the screen. The card goes into AnkiDroid on the device. It is made for people who read and listen in a language that they learn.
+SubRead Anki is a pop-up for Anki cards, used the same way as a dictionary. Select a text in any app and choose "Anki card" in the text selection menu. The pop-up shows the text and the terms at the word. Tap "＋ Anki": the card goes into AnkiDroid with the word, its reading and definition, the sentence around the word, a picture of the screen and the sound of the sentence. It is made for people who read and listen in a language that they learn.
 
 <b>What it does</b>
 
-* A tap on a word of the subtitle line of SubRead Overlay makes the card: the line is the sentence, and its times cut the sound of the audiobook.
-* "Anki" in the text selection menu of any app: a reader, a browser, an OCR app. Select a word, tap once.
-* The share sheet: a text, or a picture for the last card.
+* Works in each app that lets you select a text: readers, browsers, OCR apps.
+* A tap on a character of the text moves the word there, so one selection gives cards for several words.
+* The reading, the definition and the word audio come from SubRead Dictionary.
+* The capture keeps the sound of the device and the newest picture of the screen while it is on. The card gets the screen of the moment you selected the text, and the sound of the seconds before it: the audiobook that plays while you read. A tile in the quick settings starts and stops it.
+* With SubRead Overlay, a subtitle word shows its whole line, and the card gets the sound of that line.
 * Another app, or a link on a web page, can send a whole card: word, sentence, audio and its times, picture.
-* The reading, the definition, the pitch accent, the frequency and the word audio come from SubRead Dictionary.
-* The capture keeps the last minute and a half of the sound of the device and the last picture of the screen, while it is on. A tile in the quick settings starts and stops it.
 * Works with the Lapis note type, the basic note types, or its own.
 * Black on white and nothing that moves: usable on an e-ink screen.
 

@@ -30,6 +30,8 @@ object DictionaryClient {
         val reading: String,
         /** How many characters of the text the term covers. */
         val length: Int,
+        /** The deinflection from the text to the term, for example `past`. Empty for the dictionary form. */
+        val reasons: String,
         /** HTML: the name of each dictionary and its glossary. */
         val glossary: String,
         val frequency: String,
@@ -47,19 +49,27 @@ object DictionaryClient {
     /** True when the installed dictionary has the provider: the versions before it do not. */
     fun answers(context: Context): Boolean = authority(context) != null
 
-    /** The terms at the start of [text]. Empty when the dictionary is not there or has no term. */
-    fun lookup(context: Context, text: String): List<Entry> {
+    /**
+     * The terms that start at [offset] in [text], the longest first. Empty when the dictionary
+     * is not there or has no term there.
+     */
+    fun lookup(context: Context, text: String, offset: Int = 0): List<Entry> {
         val authority = authority(context)
-        if (text.isEmpty() || authority == null) return emptyList()
-        val uri = "content://$authority/terms".toUri().buildUpon().appendQueryParameter("text", text).build()
+        if (text.isEmpty() || offset !in text.indices || authority == null) return emptyList()
+        val uri = "content://$authority/terms".toUri().buildUpon()
+            .appendQueryParameter("text", text).appendQueryParameter("offset", offset.toString()).build()
         val cursor = runCatching { context.contentResolver.query(uri, null, null, null, null) }.getOrNull() ?: return emptyList()
-        data class Row(val expression: String, val reading: String, val length: Int, val dictionary: String, val glossary: String, val frequency: String, val pitch: String)
+        data class Row(
+            val expression: String, val reading: String, val length: Int, val reasons: String,
+            val dictionary: String, val glossary: String, val frequency: String, val pitch: String,
+        )
         val rows = cursor.use { c ->
             buildList {
                 while (c.moveToNext()) add(
                     Row(
                         c.text("expression") ?: continue, c.text("reading").orEmpty(), c.long("length")?.toInt() ?: 0,
-                        c.text("dictionary").orEmpty(), c.text("definition_html") ?: c.text("glossary").orEmpty(),
+                        c.text("reasons").orEmpty(), c.text("dictionary").orEmpty(),
+                        c.text("definition_html") ?: c.text("glossary").orEmpty(),
                         c.text("frequency").orEmpty(), c.text("pitch").orEmpty(),
                     ),
                 )
@@ -71,6 +81,7 @@ object DictionaryClient {
                 expression = key.first,
                 reading = key.second,
                 length = first.length,
+                reasons = first.reasons,
                 glossary = group.joinToString("<br>") { row ->
                     if (row.dictionary.isEmpty()) row.glossary else "<i>${escape(row.dictionary)}</i><br>${row.glossary}"
                 },

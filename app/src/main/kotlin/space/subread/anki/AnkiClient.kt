@@ -59,6 +59,28 @@ class AnkiClient(private val context: Context) {
         return id
     }
 
+    /** The note type of the cards when it exists already, or null. Makes nothing: for a look before the first card. */
+    fun existingModel(): Long? {
+        val models = models()
+        val chosen = store.modelId
+        if (chosen != Store.NONE && models.containsKey(chosen)) return chosen
+        return models.entries.firstOrNull { it.value == NoteType.NAME }?.key
+    }
+
+    /** The name of the deck that the cards go to. */
+    fun deckName(): String = decks()[store.deckId] ?: DECK_NAME
+
+    /**
+     * True when a note of the note type has [expression] in its first field, and that field
+     * holds the word. False when the note type does not exist yet.
+     */
+    fun inAnki(expression: String): Boolean {
+        val modelId = existingModel() ?: return false
+        val fields = fields(modelId)
+        if (fields.isEmpty() || mapping(modelId, fields)[fields.first()] != Source.EXPRESSION) return false
+        return isDuplicate(modelId, expression)
+    }
+
     /** What fills each field of [modelId]: the mapping the user set, else a guess from the names. */
     fun mapping(modelId: Long, fields: List<String>): Map<String, Source> {
         val set = store.mapping

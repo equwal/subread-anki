@@ -18,15 +18,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.net.toUri
 import space.subread.anki.core.Fields
-import space.subread.anki.core.MineRequest
 import space.subread.anki.core.NoteType
 import space.subread.anki.core.Source
 import kotlin.concurrent.thread
 
 /**
- * The one screen of the app: AnkiDroid, the deck and the note type, the SubRead apps, the
- * capture, the options, and a field to try a card. Each part is on the screen from the
- * start, so that the user sees what the app does before a button is pressed.
+ * The settings: AnkiDroid, the deck and the note type, the dictionary, the capture, the
+ * options, and a field to try the pop-up. Each part is on the screen from the start, so that
+ * the user sees what the app does before a button is pressed.
  */
 class MainActivity : Activity() {
 
@@ -75,10 +74,9 @@ class MainActivity : Activity() {
         if (allowed) row(button(getString(R.string.model_choose)) { chooseModel() }, button(getString(R.string.fields)) { editFields() })
         note(getString(R.string.fields_why), top = 4)
 
-        val overlay = installed(OverlayClient.PACKAGE)
         val dictionary = DictionaryClient.installed(this)
-        step(R.string.step_subread, getString(if (overlay) R.string.overlay_ok else R.string.overlay_missing), null) {}
-        note(
+        step(
+            R.string.step_dictionary,
             getString(
                 when {
                     !dictionary -> R.string.dictionary_missing
@@ -86,13 +84,11 @@ class MainActivity : Activity() {
                     else -> R.string.dictionary_ok
                 },
             ),
-        )
-        row(
-            if (overlay) button(getString(R.string.open_overlay)) { launch(OverlayClient.PACKAGE) }
-            else button(getString(R.string.install_overlay)) { open(OVERLAY_INSTALL) },
-            if (dictionary) button(getString(R.string.open_dictionary)) { launch(DictionaryClient.PACKAGE) }
-            else button(getString(R.string.install_dictionary)) { open(DICTIONARY_INSTALL) },
-        )
+            getString(if (dictionary) R.string.open_dictionary else R.string.install_dictionary),
+            done = DictionaryClient.answers(this),
+        ) {
+            if (dictionary) launch(DictionaryClient.PACKAGE) else open(DICTIONARY_INSTALL)
+        }
 
         val capturing = CaptureService.instance != null
         step(
@@ -104,17 +100,16 @@ class MainActivity : Activity() {
             if (capturing) CaptureService.stop(this) else startActivity(Intent(this, CaptureActivity::class.java))
             content.postDelayed({ draw() }, 500)
         }
+        note(getString(R.string.capture_overlay), top = 12)
         note(getString(R.string.pad), top = 12)
         numberField(store.padMs) { store.padMs = it }
 
-        step(R.string.step_options, getString(if (store.confirm) R.string.confirm_on else R.string.confirm_off), getString(R.string.toggle)) {
-            store.confirm = !store.confirm
+        step(R.string.step_options, getString(if (store.addAtOnce) R.string.popup_off else R.string.popup_on), getString(R.string.toggle)) {
+            store.addAtOnce = !store.addAtOnce
             draw()
         }
         note(getString(if (store.skipDuplicates) R.string.duplicates_skip else R.string.duplicates_add), top = 12)
         content.addView(button(getString(R.string.toggle)) { store.skipDuplicates = !store.skipDuplicates; draw() }, narrow())
-        note(getString(if (store.openDictionary) R.string.open_dictionary_on else R.string.open_dictionary_off), top = 12)
-        content.addView(button(getString(R.string.toggle)) { store.openDictionary = !store.openDictionary; draw() }, narrow())
         note(getString(R.string.tags), top = 12)
         textField(store.tags) { store.tags = it }
 
@@ -124,9 +119,15 @@ class MainActivity : Activity() {
             setTextColor(Color.BLACK)
         }
         content.addView(tryField, wide())
-        content.addView(button(getString(R.string.try_add)) {
+        content.addView(button(getString(R.string.try_look_up)) {
             val text = tryField.text.toString().trim()
-            if (text.isNotEmpty()) startActivity(Requests.toIntent(MineRequest(expression = text)).setClass(this, AddActivity::class.java))
+            // The same intent as the text selection menu, so "Try it" opens the same pop-up.
+            if (text.isNotEmpty()) {
+                startActivity(
+                    Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").setClass(this, AddActivity::class.java)
+                        .putExtra(Intent.EXTRA_PROCESS_TEXT, text),
+                )
+            }
         }, narrow())
 
         if (BuildConfig.DONATE_LINK) content.addView(button(getString(R.string.donate)) { open(KOFI) }, wide(top = 24))
@@ -175,7 +176,7 @@ class MainActivity : Activity() {
                     draw()
                 }
             }
-        }.setNegativeButton(R.string.confirm_cancel, null).show()
+        }.setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun AnkiClient.addNewDeckOrNull(name: String): Long? = runCatching {
@@ -231,7 +232,7 @@ class MainActivity : Activity() {
                 store.mapping = mapping
                 toast(getString(R.string.saved))
             }
-            .setNegativeButton(R.string.confirm_cancel, null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -242,9 +243,6 @@ class MainActivity : Activity() {
         }
         draw()
     }
-
-    private fun installed(packageName: String): Boolean =
-        runCatching { packageManager.getPackageInfo(packageName, 0) }.isSuccess
 
     private fun launch(packageName: String) {
         packageManager.getLaunchIntentForPackage(packageName)?.let { runCatching { startActivity(it) } }
@@ -326,7 +324,6 @@ class MainActivity : Activity() {
     private companion object {
         const val PERMISSION = 1
         const val ANKIDROID_INSTALL = "https://play.google.com/store/apps/details?id=com.ichi2.anki"
-        const val OVERLAY_INSTALL = "https://github.com/equwal/subread-overlay/releases/latest"
         const val DICTIONARY_INSTALL = "https://github.com/equwal/subread-dictionary/releases/latest"
         const val KOFI = "https://ko-fi.com/truex"
     }

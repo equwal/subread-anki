@@ -1,37 +1,56 @@
 package space.subread.anki
 
 import android.content.Context
-import android.os.SystemClock
+import android.graphics.Bitmap
+import android.icu.text.BreakIterator
+import android.net.Uri
 import space.subread.anki.core.Fields
 import space.subread.anki.core.MediaNames
 import space.subread.anki.core.MineRequest
 import space.subread.anki.core.Note
 import space.subread.anki.core.PlayerReport
+import space.subread.anki.core.Scans
 import space.subread.anki.core.Sentences
 import space.subread.anki.core.Source
 import java.io.File
 
 /**
- * Makes a card from a request: fills what the request does not say from the overlay, the
- * dictionary and the capture, then adds it to AnkiDroid. Two steps, so that the user can be
- * shown the card in between: [prepare], then [add].
+ * Makes cards. [grab] keeps the media of the moment a text comes in: the picture of the
+ * screen and the sound of the sentence. [add] puts one card in AnkiDroid with that media and
+ * the term that the user chose in the pop-up.
  */
 class Miner(private val context: Context) {
 
     private val store = Store(context)
 
-    /** A card ready to add. */
-    class Plan(
+    /** The media of one text, taken when it came in. One pop-up can add several cards with it. */
+    class Grab(
         val request: MineRequest,
-        /** The word as the user selected it, or null for a sentence card. */
-        val selection: String?,
-        val sentence: String?,
-        /** The terms of the dictionary for the selection, the longest first. */
-        val entries: List<DictionaryClient.Entry>,
-        val sentenceAudio: File?,
-        val image: File?,
-        /** The stem of the media files of this card. */
         val stem: String,
+        val picture: File?,
+        val sentenceAudio: File?,
+        /** How long the sentence sound is, in milliseconds, or null without one. */
+        val soundMs: Long?,
+        /** Where the text is from: the sender, the player, or the app that sent it. */
+        val source: String,
+    ) {
+        // The names in the media folder of AnkiDroid, once the first card copied the files.
+        internal var ankiPicture: String? = null
+        internal var ankiSound: String? = null
+    }
+
+    /** The parts of one card that the pop-up chose. */
+    data class Card(
+        val expression: String,
+        val reading: String,
+        val definition: String,
+        val sentence: String,
+        /** The word as it is in the sentence, for the bold. */
+        val selection: String,
+        val pitch: String,
+        val frequency: String,
+        /** Where the dictionary gives the audio of the word, or null. */
+        val wordAudio: Uri?,
     )
 
     sealed class Result {
@@ -41,93 +60,90 @@ class Miner(private val context: Context) {
         class Failed(val why: String) : Result()
     }
 
-    /** Gathers everything for the card. Slow: the sound is encoded, a URL is fetched. Not on the UI thread. */
-    fun prepare(request: MineRequest): Plan {
+    /**
+     * The media of the moment the text came in. [shot] is the screen from before the pop-up
+     * drew. [line] is the overlay when the text is its subtitle line: then the sound is that
+     * line, cut on the clock of the player. [grabbedAt] is `SystemClock.elapsedRealtimeNanos()`
+     * of the moment. Slow: not on the UI thread.
+     */
+    fun grab(request: MineRequest, shot: Bitmap?, grabbedAt: Long, line: OverlayClient.Now?, source: String): Grab {
         Media.cleanOld(context)
-        var selection = request.expression?.trim()?.takeIf { it.isNotEmpty() }
-        var sentence = request.sentence?.trim()?.takeIf { it.isNotEmpty() }
-        // A whole sentence in the selection, and no sentence given: a sentence card.
-        if (selection != null && sentence == null && looksLikeSentence(selection)) {
-            sentence = selection
-            selection = null
-        }
-        val overlay = OverlayClient.now(context)
-        val line = overlay?.line
-        if (sentence == null && line != null && (selection == null || line.text.contains(selection))) sentence = line.text
-        val stamp = System.currentTimeMillis()
-        val stem = MediaNames.stem(selection ?: sentence ?: "card", stamp)
-        val entries = if (selection != null && request.definition == null) DictionaryClient.lookup(context, selection) else emptyList()
-        val sentenceAudio = sentenceAudio(request, overlay, stem)
-        val image = request.image?.let { Media.fetch(context, it, stem, Media.Kind.IMAGE) }
-            ?: CaptureService.instance?.screenshot(Media.file(context, "$stem.jpg"))
-        return Plan(request, selection, sentence, entries, sentenceAudio, image, stem)
+        val stem = MediaNames.stem(request.expression ?: request.sentence ?: "card", System.currentTimeMillis())
+        val picture = request.image?.let { Media.fetch(context, it, stem, Media.Kind.IMAGE) }
+            ?: shot?.let { Media.writeJpeg(it, Media.file(context, "$stem.jpg")) }
+        val (sound, ms) = sentenceAudio(request, line, stem, grabbedAt)
+        return Grab(request, stem, picture, sound, ms, source)
     }
 
     /**
      * The sound of the sentence: cut from the file the request names, or fetched whole, or
-     * taken from the capture. From the capture, the clip is the subtitle line of now, on the
-     * clock of the player; without a line, the last seconds before the tap.
+     * taken from the capture. From the capture, the clip is the subtitle line, on the clock of
+     * the player; without a line, the last seconds before the text came in.
      */
-    private fun sentenceAudio(request: MineRequest, overlay: OverlayClient.Now?, stem: String): File? {
+    private fun sentenceAudio(request: MineRequest, line: OverlayClient.Now?, stem: String, grabbedAt: Long): Pair<File?, Long?> {
         val audio = request.audio
         if (audio != null) {
             val start = request.audioStartMs
             val end = request.audioEndMs
-            return if (start != null && end != null) AudioCut.cut(context, audio, start, end, Media.file(context, "$stem.m4a"))
-            else Media.fetch(context, audio, "${stem}_sentence", Media.Kind.AUDIO)
+            return if (start != null && end != null) {
+                AudioCut.cut(context, audio, start, end, Media.file(context, "$stem.m4a")) to (end - start)
+            } else {
+                Media.fetch(context, audio, "${stem}_sentence", Media.Kind.AUDIO) to null
+            }
         }
-        val capture = CaptureService.instance ?: return null
-        val now = SystemClock.elapsedRealtimeNanos()
-        val line = overlay?.line
+        val capture = CaptureService.instance ?: return null to null
         // A sender that gives the position of its player, and no overlay: the tap is the position.
-        val report = overlay?.report ?: request.positionMs?.let { PlayerReport(it, now, 1.0, false) }
-        val cueStart = request.cueStartMs ?: line?.let { it.startMs - it.offsetMs }
-        val cueEnd = request.cueEndMs ?: line?.let { it.endMs - it.offsetMs }
+        val report = line?.report ?: request.positionMs?.let { PlayerReport(it, grabbedAt, 1.0, false) }
+        val cue = line?.line
+        val cueStart = request.cueStartMs ?: cue?.let { it.startMs - it.offsetMs }
+        val cueEnd = request.cueEndMs ?: cue?.let { it.endMs - it.offsetMs }
         val range = if (report != null && cueStart != null && cueEnd != null && cueEnd > cueStart) {
             report.wallRange(cueStart, cueEnd, store.padMs.toLong())
         } else {
-            (now - LAST_SECONDS * 1_000_000_000L)..now
+            (grabbedAt - LAST_SECONDS * 1_000_000_000L)..grabbedAt
         }
-        return capture.clip(range.first, range.last, Media.file(context, "$stem.m4a"))
+        val clip = capture.clip(range.first, range.last, Media.file(context, "$stem.m4a"))
+        return clip to clip?.let { (range.last - range.first) / 1_000_000L }
     }
 
-    /** Adds the card to AnkiDroid, with [entry] as the term. Not on the UI thread. */
-    fun add(plan: Plan, entry: DictionaryClient.Entry?): Result {
+    /** Adds one card to AnkiDroid. Not on the UI thread. */
+    fun add(grab: Grab, card: Card): Result {
         val anki = AnkiClient(context)
         val deckId = anki.ensureDeck()
         val modelId = anki.ensureModel(deckId)
         val fields = anki.fields(modelId)
         if (fields.isEmpty()) return Result.Failed("the note type has no field")
         val mapping = anki.mapping(modelId, fields)
-        val request = plan.request
-        val expression = entry?.expression ?: plan.selection ?: ""
-        if (store.skipDuplicates && expression.isNotEmpty() && mapping[fields.first()] == Source.EXPRESSION && anki.isDuplicate(modelId, expression)) {
-            return Result.Duplicate(expression)
+        if (store.skipDuplicates && card.expression.isNotEmpty() && mapping[fields.first()] == Source.EXPRESSION &&
+            anki.isDuplicate(modelId, card.expression)
+        ) {
+            return Result.Duplicate(card.expression)
         }
-        val sentenceAudio = plan.sentenceAudio?.let { anki.addMedia(it, "audio") }.orEmpty()
-        val image = plan.image?.let { anki.addMedia(it, "image") }.orEmpty()
-        val wordAudioFile = request.wordAudio?.let { Media.fetch(context, it, "${plan.stem}_word", Media.Kind.AUDIO) }
-            ?: entry?.audio?.let { ask -> DictionaryClient.audio(context, ask)?.let { Media.write(context, it, "${plan.stem}_word", Media.Kind.AUDIO) } }
+        val sound = grab.ankiSound ?: grab.sentenceAudio?.let { anki.addMedia(it, "audio") }?.also { grab.ankiSound = it }
+        val picture = grab.ankiPicture ?: grab.picture?.let { anki.addMedia(it, "image") }?.also { grab.ankiPicture = it }
+        val stem = MediaNames.stem(card.expression.ifEmpty { "card" }, System.currentTimeMillis())
+        val wordAudioFile = grab.request.wordAudio?.let { Media.fetch(context, it, "${stem}_word", Media.Kind.AUDIO) }
+            ?: card.wordAudio?.let { ask -> DictionaryClient.audio(context, ask)?.let { Media.write(context, it, "${stem}_word", Media.Kind.AUDIO) } }
         val wordAudio = wordAudioFile?.let { anki.addMedia(it, "audio") }.orEmpty()
         val note = Note(
-            expression = expression,
-            reading = request.reading ?: entry?.reading.orEmpty(),
-            definition = request.definition ?: entry?.glossary.orEmpty(),
-            sentence = plan.sentence.orEmpty(),
-            sentenceAudioFile = sentenceAudio,
+            expression = card.expression,
+            reading = card.reading,
+            definition = card.definition,
+            sentence = card.sentence,
+            sentenceAudioFile = sound.orEmpty(),
             wordAudioFile = wordAudio,
-            imageFile = image,
-            source = request.source.orEmpty(),
-            pitch = request.pitch ?: entry?.pitch.orEmpty(),
-            frequency = request.frequency ?: entry?.frequency.orEmpty(),
-            selection = plan.selection.orEmpty(),
+            imageFile = picture.orEmpty(),
+            source = grab.source,
+            pitch = card.pitch,
+            frequency = card.frequency,
+            selection = card.selection,
         )
         val values = Fields.render(note, fields, mapping)
-        val tags = (store.tags.split(' ') + request.tags).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val tags = (store.tags.split(' ') + grab.request.tags).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         val noteId = anki.addNote(modelId, deckId, values, tags) ?: return Result.Failed("AnkiDroid refused the note")
         store.lastNoteId = noteId
         store.lastNoteAt = System.currentTimeMillis()
-        return Result.Added(noteId, expression)
+        return Result.Added(noteId, card.expression)
     }
 
     /** A picture shared on its own goes onto the last card of the hour. Not on the UI thread. */
@@ -152,7 +168,7 @@ class Miner(private val context: Context) {
     }
 
     companion object {
-        /** Without a subtitle line, the clip is this much sound before the tap. */
+        /** Without a subtitle line, the clip is this much sound before the text came in. */
         const val LAST_SECONDS = 8
 
         /** The longest selection that is a word. Longer, or with the end of a sentence in it, is a sentence. */
@@ -161,5 +177,41 @@ class Miner(private val context: Context) {
         /** True for a selection that is a sentence, not a word. */
         fun looksLikeSentence(text: String): Boolean =
             text.length > MAX_WORD || text.any { Sentences.isTerminator(it) } || text.trim().split(Regex("\\s+")).size > 3
+
+        /**
+         * The card for a term of the dictionary, or for the word alone when [entry] is null. The
+         * word starts at [start] of [text] and is [length] characters long; -1 when the word is
+         * not in the text. What the request gives wins over the dictionary.
+         */
+        fun card(request: MineRequest, text: String, start: Int, length: Int, entry: DictionaryClient.Entry?): Card {
+            val inText = start >= 0 && length > 0 && start + length <= text.length
+            val selection = if (inText) text.substring(start, start + length) else ""
+            return Card(
+                expression = entry?.expression ?: selection.ifEmpty { request.expression?.trim().orEmpty() },
+                reading = request.reading ?: entry?.reading.orEmpty(),
+                definition = request.definition ?: entry?.glossary.orEmpty(),
+                sentence = if (inText) Scans.sentence(text, start, length) else request.sentence?.trim().orEmpty(),
+                selection = selection,
+                pitch = request.pitch ?: entry?.pitch.orEmpty(),
+                frequency = request.frequency ?: entry?.frequency.orEmpty(),
+                wordAudio = entry?.audio,
+            )
+        }
+
+        /**
+         * The word at [index] of [text], without a dictionary. A text that the user [selected]
+         * as it is, and that is no sentence, is one word: the user chose its ends. Else the word
+         * boundaries of ICU, which also split Japanese and Chinese.
+         */
+        fun wordAt(text: String, index: Int, selected: Boolean): IntRange {
+            if (text.isEmpty()) return IntRange.EMPTY
+            if (selected && !looksLikeSentence(text)) return text.indices
+            val at = index.coerceIn(0, text.length - 1)
+            val words = BreakIterator.getWordInstance()
+            words.setText(text)
+            val end = words.following(at).let { if (it == BreakIterator.DONE) text.length else it }
+            val start = words.preceding(end).let { if (it == BreakIterator.DONE) 0 else it }
+            return start until end
+        }
     }
 }

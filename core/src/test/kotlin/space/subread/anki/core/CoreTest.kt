@@ -371,6 +371,76 @@ class FieldsTest {
     }
 }
 
+/** The text of the pop-up and the sentence of a card. */
+class ScansTest {
+
+    private val piece: Arb<String> = text(6, listOf("a", "b", "猫", "ね", "食", "べ", "た", "。", " ", "「", "」"), least = 1)
+
+    @Test
+    fun theWordIsWhereTheScanSaysItIs() = property {
+        checkAll(piece.orNull(0.3), piece.orNull(0.3), piece.orNull(0.3)) { selection, sentence, line ->
+            val scan = Scans.resolve(selection, sentence, line) ?: run {
+                // No scan only when there is nothing to show.
+                assertTrue(selection.isNullOrBlank() && sentence.isNullOrBlank())
+                return@checkAll
+            }
+            assertTrue("empty text for $selection $sentence $line", scan.text.isNotEmpty())
+            val word = scan.word
+            if (word != null && scan.offset >= 0) assertTrue(scan.text.regionMatches(scan.offset, word, 0, word.length))
+            if (scan.offset < 0) assertTrue(word != null && !scan.text.contains(word))
+            if (scan.fromLine) assertEquals(line!!.trim(), scan.text)
+        }
+    }
+
+    @Test
+    fun theSenderSentenceWinsThenTheLineThenTheSelection() {
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", false), Scans.resolve("食べた", "猫が魚を食べた。", "犬だ。"))
+        assertEquals(Scan("猫が魚を食べた。", -1, "食べる", false), Scans.resolve("食べる", "猫が魚を食べた。", null))
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", true), Scans.resolve("食べた", null, "猫が魚を食べた。"))
+        assertEquals(Scan("食べた", 0, "食べた", false), Scans.resolve("食べた", null, "犬だ。"))
+        assertEquals(Scan("猫が魚を食べた。", 0, null, false), Scans.resolve(null, "猫が魚を食べた。", null))
+        assertNull(Scans.resolve(" ", null, "猫だ。"))
+    }
+
+    @Test
+    fun theSentenceIsInTheText() = property {
+        checkAll(anyText, Arb.int(0..50), Arb.int(0..10)) { text, start, length ->
+            val sentence = Scans.sentence(text, start, length)
+            assertTrue("$sentence is in $text", sentence.isEmpty() || text.contains(sentence))
+            assertTrue(sentence.isEmpty() || sentence.length > length)
+        }
+    }
+
+    @Test
+    fun aWordAloneIsNoSentence() {
+        assertEquals("", Scans.sentence("食べた", 0, 3))
+        assertEquals("猫が魚を食べた。", Scans.sentence("犬だ。猫が魚を食べた。", 7, 3))
+        assertEquals("", Scans.sentence("", 0, 0))
+    }
+}
+
+/** Silence is not sound for a card. */
+class LoudnessTest {
+
+    @Test
+    fun aConstantHasItsOwnSizeAsLoudness() = property {
+        checkAll(Arb.int(-32767..32767), Arb.int(1..500)) { value, size ->
+            val rms = Loudness.rms(ShortArray(size) { value.toShort() })
+            assertEquals(kotlin.math.abs(value).toDouble(), rms, 1e-6)
+        }
+    }
+
+    @Test
+    fun speechIsNotSilenceAndZerosAre() {
+        val speech = ShortArray(44_100) { (3000 * kotlin.math.sin(2 * Math.PI * 220 * it / 44_100.0)).toInt().toShort() }
+        assertFalse(Loudness.isSilent(speech))
+        assertTrue(Loudness.isSilent(ShortArray(44_100)))
+        assertTrue(Loudness.isSilent(ShortArray(0)))
+        // A noise floor of a few steps is silence.
+        assertTrue(Loudness.isSilent(ShortArray(1000) { ((it % 7) - 3).toShort() }))
+    }
+}
+
 /** Names of media files. */
 class MediaNamesTest {
 

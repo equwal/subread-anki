@@ -41,10 +41,11 @@
         </activity>
 
         <!--
-            The one way in. It shows nothing: it takes the request, fills what is missing,
-            adds the card and closes. Five doors: the text selection menu of Android, the share
-            sheet (a text or a picture), the action space.subread.anki.action.ADD from another
-            app, and the link subreadanki://add from a web page. See README.md.
+            The pop-up, the same as a dictionary: the text, the terms at the word, and one
+            "+ Anki" button for each. Doors: the text selection menu of Android ("Anki card"),
+            the share sheet (a text or a picture), the action space.subread.anki.action.ADD
+            from another app, and the link subreadanki://add from a web page. A request that
+            brings its own definition is added at once, with no pop-up. See README.md.
         -->
         <activity
             android:name=".AddActivity"
@@ -52,7 +53,7 @@
             android:exported="true"
             android:label="@string/add_label"
             android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:theme="@style/Popup">
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />

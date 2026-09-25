@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SubRead Anki</string>
-    <string name="add_label">Anki</string>
+    <string name="add_label">Anki card</string>
     <string name="tile_label">Anki capture</string>
 
-    <string name="about">One tap makes an Anki card: the word, its reading and definition, the sentence it is in, the sound of that sentence, and a picture of the screen. From SubRead Overlay, from the text selection menu of any app, from the share sheet, or from a web page.</string>
-    <string name="privacy">Nothing leaves the device. The app talks to AnkiDroid, SubRead Overlay and SubRead Dictionary on the device. It opens a URL only when a sender gives one for an audio or a picture.</string>
+    <string name="about">Select a text in any app and choose "Anki card" in the menu. A pop-up shows the terms at the word, the same as a dictionary. A tap on another character moves the word. Tap "＋ Anki": the card gets the word, its reading and definition, the sentence, a picture of the screen and the sound of the sentence.</string>
+    <string name="privacy">Nothing leaves the device. The app talks to AnkiDroid and SubRead Dictionary on the device. It opens a URL only when a sender gives one for an audio or a picture.</string>
 
     <string name="step_anki">1. AnkiDroid</string>
     <string name="anki_missing">AnkiDroid is not installed. The app adds the cards to it.</string>
@@ -27,19 +27,16 @@
     <string name="fields_why">What goes into each field of the note type. The app guesses from the names; Lapis and the basic note types work as they are.</string>
     <string name="field_source">%1$s ← %2$s</string>
 
-    <string name="step_subread">3. SubRead Overlay and Dictionary</string>
-    <string name="overlay_ok">SubRead Overlay is installed. In its settings, choose "Anki" as the dictionary: a tap on a word of the subtitle line makes the card, with the line as the sentence and its sound.</string>
-    <string name="overlay_missing">SubRead Overlay is not installed. With it, a tap on a word of the subtitle line makes the card, with the line as the sentence and its sound.</string>
-    <string name="dictionary_ok">SubRead Dictionary is installed: it gives the reading, the definition, the pitch, the frequency and the word audio.</string>
+    <string name="step_dictionary">3. Dictionary</string>
+    <string name="dictionary_ok">SubRead Dictionary gives the terms of the pop-up: the reading, the definition and the word audio.</string>
     <string name="dictionary_old">SubRead Dictionary is installed, but this version does not answer other apps. Update it for the definitions.</string>
-    <string name="dictionary_missing">SubRead Dictionary is not installed. Without it, a card has no definition unless the sender gives one.</string>
-    <string name="open_overlay">Open SubRead Overlay</string>
+    <string name="dictionary_missing">SubRead Dictionary is not installed. Without it, the pop-up has no definitions: the word goes on the card as it is.</string>
     <string name="open_dictionary">Open SubRead Dictionary</string>
-    <string name="install_overlay">Install SubRead Overlay</string>
     <string name="install_dictionary">Install SubRead Dictionary</string>
 
-    <string name="step_capture">4. Capture</string>
-    <string name="capture_why">The sound of the player and a picture of the screen go on the card while the capture is on. Android asks each time it starts. The quick settings have a tile for it. A player that hides its sound (DRM) gives no sound.</string>
+    <string name="step_capture">4. Picture and sound</string>
+    <string name="capture_why">While the capture is on, each card gets a picture of the screen and the sound of the last seconds before the text was selected: the audiobook that you listen to while you read. A clip of silence is left out. Android asks each time the capture starts. The quick settings have a tile for it.</string>
+    <string name="capture_overlay">With SubRead Overlay, a tap on a subtitle word shows its line in the pop-up, and the sound of that line goes on the card.</string>
     <string name="capture_no_audio">This Android version captures the screen only; the sound of other apps needs Android 10.</string>
     <string name="capture_start">Start the capture</string>
     <string name="capture_stop">Stop the capture</string>
@@ -47,38 +44,44 @@
     <string name="capture_channel">Capture</string>
     <string name="capture_denied">Android did not allow the capture.</string>
     <string name="capture_no_record">The capture needs the microphone permission of Android, for the sound of the player. No microphone is recorded.</string>
-    <string name="pad">Sound before and after the line, in milliseconds</string>
+    <string name="pad">Sound before and after a subtitle line, in milliseconds</string>
 
     <string name="step_options">5. Options</string>
-    <string name="confirm_on">Ask before adding: on</string>
-    <string name="confirm_off">Ask before adding: off (one tap adds)</string>
+    <string name="popup_on">A selected text: show the pop-up</string>
+    <string name="popup_off">A selected text: add the first term at once, with no pop-up</string>
     <string name="duplicates_skip">A word that is in the deck already: skip</string>
     <string name="duplicates_add">A word that is in the deck already: add again</string>
-    <string name="open_dictionary_on">After the card, open SubRead Dictionary: on</string>
-    <string name="open_dictionary_off">After the card, open SubRead Dictionary: off</string>
     <string name="tags">Tags, separated by spaces</string>
     <string name="save">Save</string>
     <string name="saved">Saved.</string>
     <string name="toggle">Change</string>
 
     <string name="step_try">6. Try it</string>
-    <string name="try_hint">A word, or a sentence</string>
-    <string name="try_add">Add a card</string>
+    <string name="try_hint">A sentence</string>
+    <string name="try_look_up">Look up</string>
 
     <string name="donate">Support the app on Ko-fi</string>
 
+    <string name="settings">Settings</string>
+    <string name="close">Close</string>
+    <string name="add_card">＋ Anki</string>
+    <string name="added_short">✓ Added</string>
+    <string name="in_anki">✓ In Anki</string>
+    <string name="no_term">No term here. Tap another character, or add the word as it is.</string>
+    <string name="no_dictionary">No dictionary: install SubRead Dictionary for the reading and the definition. The word goes on the card as it is.</string>
+    <string name="no_audio">No audio for this term.</string>
+    <string name="status_picture">Picture ✓</string>
+    <string name="status_no_picture">No picture</string>
+    <string name="status_sound">Sound ✓</string>
+    <string name="status_sound_seconds">Sound %1$s s ✓</string>
+    <string name="status_no_sound">No sound</string>
+    <string name="status_capture_off">Capture off: no picture, no sound</string>
+
     <string name="no_text">The request is empty: no word and no sentence.</string>
     <string name="added">Added to Anki: %1$s</string>
-    <string name="added_sentence">Added the sentence to Anki</string>
     <string name="duplicate">Already in Anki: %1$s</string>
     <string name="failed">Anki did not take the card: %1$s</string>
-    <string name="confirm_title">Add to Anki</string>
-    <string name="confirm_add">Add</string>
-    <string name="confirm_cancel">Cancel</string>
-    <string name="confirm_sentence_only">Sentence card, no word</string>
-    <string name="confirm_media">Sound: %1$s   Picture: %2$s   Word audio: %3$s</string>
-    <string name="yes">yes</string>
-    <string name="no">no</string>
+    <string name="cancel">Cancel</string>
     <string name="picture_attached">Picture added to the last card</string>
     <string name="picture_no_card">No card of the last hour to add the picture to</string>
 </resources>

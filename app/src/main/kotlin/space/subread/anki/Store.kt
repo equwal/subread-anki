@@ -32,20 +32,18 @@ class Store(context: Context) {
         get() = prefs.getString("tags", "subread") ?: "subread"
         set(value) = prefs.edit { putString("tags", value.trim()) }
 
-    /** True: the app shows the card before it adds it. False: one tap adds. */
-    var confirm: Boolean
-        get() = prefs.getBoolean("confirm", false)
-        set(value) = prefs.edit { putBoolean("confirm", value) }
+    /**
+     * False: a selected text opens the pop-up, and "+ Anki" adds the term. True: the first
+     * term at the start of the selection goes on a card at once, with no pop-up.
+     */
+    var addAtOnce: Boolean
+        get() = prefs.getBoolean("add_at_once", false)
+        set(value) = prefs.edit { putBoolean("add_at_once", value) }
 
     /** True: a word that is in the note type already is not added again. */
     var skipDuplicates: Boolean
         get() = prefs.getBoolean("skip_duplicates", true)
         set(value) = prefs.edit { putBoolean("skip_duplicates", value) }
-
-    /** True: after the card, the pop-up of SubRead Dictionary opens for the word. */
-    var openDictionary: Boolean
-        get() = prefs.getBoolean("open_dictionary", false)
-        set(value) = prefs.edit { putBoolean("open_dictionary", value) }
 
     /** Sound before and after the subtitle line in the clip, in milliseconds. */
     var padMs: Int

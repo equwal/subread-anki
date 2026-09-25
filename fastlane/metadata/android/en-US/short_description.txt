@@ -1,1 +1,1 @@
-﻿One tap makes an Anki card: word, definition, sentence, its sound, a picture.
+Select a text in any app, tap a word, tap + Anki: a card with sentence, picture, sound.

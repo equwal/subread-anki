@@ -30,7 +30,7 @@ import android.util.DisplayMetrics
 import android.view.Display
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.scale
+import space.subread.anki.core.Loudness
 import space.subread.anki.core.PcmRing
 import java.io.File
 import kotlin.concurrent.thread
@@ -188,33 +188,26 @@ class CaptureService : Service() {
 
     /**
      * The sound between two moments of the ring clock, as AAC in [out]. Null when the ring
-     * has none of it, or less than a fifth of a second.
+     * has none of it, less than a fifth of a second, or only silence: a reader app plays no
+     * sound, and a card with a silent clip is worse than a card without one.
      */
     fun clip(fromNanos: Long, toNanos: Long, out: File): File? {
         val pcm = synchronized(ringLock) { ring.read(fromNanos, toNanos) }
-        if (pcm.size < SAMPLE_RATE / 5) return null
+        if (pcm.size < SAMPLE_RATE / 5 || Loudness.isSilent(pcm)) return null
         return runCatching { AacEncoder.encode(pcm, SAMPLE_RATE, 1, out); out }.getOrNull()
     }
 
-    /** The newest picture of the screen, as a JPEG in [out]. Null when there is none yet. */
-    fun screenshot(out: File): File? {
-        val bitmap = synchronized(imageLock) {
-            val image = latest ?: return null
-            val plane = image.planes[0]
-            val stride = plane.rowStride / plane.pixelStride
-            val full = createBitmap(stride, image.height)
-            full.copyPixelsFromBuffer(plane.buffer.also { it.rewind() })
-            if (stride == image.width) full else Bitmap.createBitmap(full, 0, 0, image.width, image.height)
-        }
-        val longest = maxOf(bitmap.width, bitmap.height)
-        val scaled = if (longest <= MAX_SIDE) bitmap else {
-            val scale = MAX_SIDE.toFloat() / longest
-            bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt())
-        }
-        return runCatching {
-            out.outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-            out
-        }.getOrNull()
+    /**
+     * The newest picture of the screen. Called when a text comes in, before the pop-up draws,
+     * so the picture shows the app that sent the text. Null when there is none yet.
+     */
+    fun snapshot(): Bitmap? = synchronized(imageLock) {
+        val image = latest ?: return null
+        val plane = image.planes[0]
+        val stride = plane.rowStride / plane.pixelStride
+        val full = createBitmap(stride, image.height)
+        full.copyPixelsFromBuffer(plane.buffer.also { it.rewind() })
+        if (stride == image.width) full else Bitmap.createBitmap(full, 0, 0, image.width, image.height)
     }
 
     override fun onDestroy() {
@@ -239,8 +232,6 @@ class CaptureService : Service() {
         const val SAMPLE_RATE = 44_100
         /** How much sound the ring keeps. */
         const val SECONDS = 90
-        /** The longest side of the picture on the card, in pixels. */
-        const val MAX_SIDE = 1600
         const val CHANNEL = "capture"
         const val NOTIFICATION_ID = 1
         const val ACTION_STOP = "space.subread.anki.action.STOP_CAPTURE"

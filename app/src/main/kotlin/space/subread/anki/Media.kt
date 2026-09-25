@@ -1,9 +1,11 @@
 package space.subread.anki
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Base64
 import androidx.core.content.FileProvider
+import androidx.core.graphics.scale
 import androidx.core.net.toUri
 import java.io.File
 import java.net.HttpURLConnection
@@ -48,6 +50,22 @@ object Media {
         val out = file(context, "$stem.$extension")
         out.writeBytes(bytes)
         return out
+    }
+
+    /** The longest side of a picture on a card, in pixels. */
+    const val MAX_SIDE = 1600
+
+    /** The picture as a JPEG in [out], at most [MAX_SIDE] pixels on the long side. Null when the write fails. */
+    fun writeJpeg(bitmap: Bitmap, out: File): File? {
+        val longest = maxOf(bitmap.width, bitmap.height)
+        val scaled = if (longest <= MAX_SIDE) bitmap else {
+            val scale = MAX_SIDE.toFloat() / longest
+            bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt())
+        }
+        return runCatching {
+            out.outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+            out
+        }.getOrNull()
     }
 
     /** The bytes of a source. */

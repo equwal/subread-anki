@@ -1,23 +1,23 @@
 # SubRead Anki
 
-One tap makes an Anki card: the word, its reading and definition, the
-sentence it is in, the sound of that sentence, and a picture of the screen.
-The card goes into [AnkiDroid](https://github.com/ankidroid/Anki-Android)
-on the device.
+A pop-up for Anki cards, used the same way as a dictionary. Select a text
+in any app (a reader, a browser, an OCR app) and choose "Anki card" in the
+text selection menu. The pop-up opens over the app and shows the text and
+the terms at the word, from
+[SubRead Dictionary](https://github.com/equwal/subread-dictionary). A tap on
+a character of the text moves the word there. Tap "＋ Anki" on a term: the
+card goes into [AnkiDroid](https://github.com/ankidroid/Anki-Android) with
+the word, its reading and definition, the sentence around the word, a
+picture of the screen and the sound of the sentence.
 
-The tap can come from anywhere: a word of the subtitle line of
-[SubRead Overlay](https://github.com/equwal/subread-overlay), the text
-selection menu of any app (a reader, a browser, an OCR app), the share sheet,
-another app, or a link on a web page. The app fills in what the tap did not
-say: the definition from
-[SubRead Dictionary](https://github.com/equwal/subread-dictionary), the
-sentence and its times from the overlay, the sound and the picture from the
-capture. It shows nothing of its own: a toast says "Added to Anki: 猫" and
-the reader or the player stays in view.
+The app is on its own: it needs no other SubRead app. With SubRead
+Dictionary, the pop-up has the definitions. With
+[SubRead Overlay](https://github.com/equwal/subread-overlay), a subtitle
+word shows its whole line, and the card gets the sound of that line.
 
-Nothing leaves the device. The app talks to AnkiDroid, SubRead Overlay and
-SubRead Dictionary on the device, and opens a URL only when a sender gives
-one for an audio or a picture.
+Nothing leaves the device. The app talks to AnkiDroid and SubRead
+Dictionary on the device, and opens a URL only when a sender gives one for
+an audio or a picture.
 
 ## How to use it
 
@@ -29,37 +29,39 @@ one for an audio or a picture.
    names: the [Lapis](https://github.com/donkuri/lapis) note type and the
    basic ones work as they are. "Fields" changes the guess.
 3. Install SubRead Dictionary and import a dictionary into it, for the
-   reading, the definition, the pitch accent, the frequency and the word
-   audio.
-4. Install SubRead Overlay, and choose "Anki" as its dictionary, or use its
-   "Anki" button under a selected word. A tap on a word of the subtitle
-   line then makes the card: the line is the sentence, and its times cut
-   the sound.
-5. Start the capture, from the app or from its tile in the quick settings.
-   Android asks each time. While the capture is on, the app keeps the last
-   minute and a half of the sound of the device and the last picture of the
-   screen, and each card gets the sound of its line and the picture. Stop it
-   from the notification or the tile.
+   reading, the definition and the word audio.
+4. For a picture and sound on the cards, start the capture, from the app or
+   from its tile in the quick settings. Android asks each time. While the
+   capture is on, the app keeps the last minute and a half of the sound of
+   the device and the newest picture of the screen. Stop it from the
+   notification or the tile.
 
-In any other app: select a word and choose "Anki" in the text selection
-menu. The sentence comes from the overlay when the word is in the line of
-now. Select a whole sentence, and the card is a sentence card. Share a
-picture to "Anki" within an hour of a card, and it goes onto that card.
+Then, in any app: select a sentence, choose "Anki card", tap the word in the
+pop-up, and tap "＋ Anki". A single selected word works too; the card then
+has no sentence, unless the word is in the subtitle line of SubRead Overlay.
+The button says "✓ Added", and a term that is in the deck already says
+"✓ In Anki". A tap outside the pop-up closes it.
 
-Two options: "Ask before adding" shows the sentence and the terms of the
-dictionary first, with one tap to add; off, one tap adds. "A word that is in
-the deck already: skip" keeps a second tap from making a second card.
+The line under the text says what the card gets: "Picture ✓   Sound 5.3 s ✓
+  Deck: SubRead". The picture is the screen at the moment the text was
+selected, from before the pop-up opened. The sound is the last eight
+seconds before that moment: the audiobook that plays while you read. A clip
+of silence is left out.
+
+Share a picture to "Anki card" within an hour of a card, and it goes onto
+that card. The option "add the first term at once, with no pop-up" makes a
+selection a card with no pop-up.
 
 ## What goes on the card
 
 | Part | Where it comes from |
 |---|---|
-| Expression, reading, definition, pitch, frequency | SubRead Dictionary, for the longest term at the start of the selection. `食べた` gives the card `食べる`. A sender can give its own. |
-| Sentence | The sender, else the subtitle line of now from SubRead Overlay when the selection is in it. The word is in `<b>` as it is in the sentence. |
-| Sentence audio | The sender's file, cut to the times it gives. Else the capture, cut to the times of the subtitle line on the clock of the player, with a pad on each side. Without a line, the eight seconds before the tap. AAC in `.m4a`: every player and every Anki has it. |
+| Expression, reading, definition | The term that you tap "＋ Anki" on, from SubRead Dictionary. `食べた` gives the card `食べる`. A sender can give its own. |
+| Sentence | The sentence around the word in the text of the pop-up. The word is in `<b>` as it is in the sentence. |
+| Sentence audio | The sender's file, cut to the times it gives. Else the capture: the subtitle line of SubRead Overlay, cut on the clock of the player with a pad on each side, or the eight seconds before the text came in. AAC in `.m4a`: every player and every Anki has it. |
 | Word audio | The sender, else the audio of SubRead Dictionary (the local audio server, or a remote source when on). |
-| Picture | The sender, else the newest picture of the screen from the capture. JPEG, at most 1600 pixels on the long side. |
-| Source, tags | The sender. The tags of the settings go on every card. |
+| Picture | The sender, else the screen from the capture at the moment the text came in. JPEG, at most 1600 pixels on the long side. |
+| Source, tags | The sender, else the name of the app that sent the text. The tags of the settings go on every card. |
 
 The note type "SubRead Anki" has the fields Expression, Reading, Definition,
 Sentence, SentenceAudio, WordAudio, Image and Source, and one card: the word
@@ -67,15 +69,17 @@ and the sentence in front, the rest behind, black on white.
 
 ## For other apps
 
-Four doors, all into one activity, `space.subread.anki.AddActivity`. It
-shows nothing and closes when the card is added. Any part can be left out:
-the app fills it in as the table above says.
+Four doors, all into one activity, `space.subread.anki.AddActivity`. Any
+part can be left out: the app fills it in as the table above says. A
+request with a `definition` is a whole card: it goes to AnkiDroid at once,
+with no pop-up, and a toast says so. A request without one opens the
+pop-up at the word, so the user picks the term. `confirm` changes that.
 
 **The text selection menu and the share sheet.** No code: the app has an
 entry in both. `Intent.ACTION_PROCESS_TEXT` with `EXTRA_PROCESS_TEXT`, or
 `Intent.ACTION_SEND` with `text/plain` and `EXTRA_TEXT`. The text is the
-word. `ACTION_SEND` with an `image/*` stream and a text is the picture and
-the word; the picture alone goes onto the last card.
+text of the pop-up. `ACTION_SEND` with an `image/*` stream and a text is the
+picture and the text; the picture alone goes onto the last card.
 
 **An Intent from an app on the device.** The action
 `space.subread.anki.action.ADD`, with the keys of the table below as extras,
@@ -141,16 +145,17 @@ location.href = "intent://add?" + query + "#Intent;scheme=subreadanki;package=sp
 The link must come from a tap of the user: browsers block an app link
 without one. An `http(s)` audio is read with range requests, so a whole
 audiobook is fine; a picture is fetched whole. A `data:` Uri works for a
-small file. The app shows a toast and goes back to the browser.
+small file. With a `definition`, the app shows a toast and goes back to the
+browser; without one, the pop-up opens over the browser.
 
 **The keys.** Each is optional; a card needs `expression` or `sentence`.
 
 | Key | Value |
 |---|---|
-| `expression` | The word, as it is in the text. |
+| `expression` | The word, as it is in the text. The pop-up opens at it. |
 | `reading` | The reading of the word. |
-| `definition` | The definition, HTML or text. Given, the dictionary is not asked. |
-| `sentence` | The sentence, plain text. |
+| `definition` | The definition, HTML or text. Given, the card is added at once and the dictionary is not asked. |
+| `sentence` | The sentence, plain text: the text of the pop-up. |
 | `audio` | A Uri of the audio of the sentence: `content://`, `https://`, `http://` or `data:`. |
 | `audio_start`, `audio_end` | With `audio`: the clip, in milliseconds of the audio. Without them, the whole file is the clip. |
 | `word_audio` | A Uri of the audio of the word alone. |
@@ -160,15 +165,19 @@ small file. The app shows a toast and goes back to the browser.
 | `pitch`, `frequency` | Text for the pitch and frequency fields. |
 | `position` | The position of the player at the tap, in milliseconds. With the capture on and no `audio`, the clip is cut around it. |
 | `cue_start`, `cue_end` | The subtitle line, in milliseconds on the clock of the player. With the capture on and no `audio`, the clip is this range. |
-| `confirm` | `1`: show the card before it is added, whatever the setting says. `0`: add at once. |
+| `confirm` | `1`: open the pop-up, also with a definition. `0`: add at once, with the first term of the dictionary when there is no definition. |
 
 ## How it works
 
 `:core` is plain Kotlin, with no Android in it, and has property tests: the
-request and its query, the sentence around a word, the clock of a player
-report, the ring of captured sound, the fields of a note type. `:app` has
-the activity, the capture service, the AnkiDroid client and the two content
-provider clients.
+request and its query, the text of the pop-up and the sentence around a
+word, the clock of a player report, the ring of captured sound and its
+loudness, the fields of a note type. `:app` has the pop-up, the capture
+service, the AnkiDroid client and the two content provider clients.
+
+The pop-up takes the picture when the text comes in, before its own window
+draws, and cuts the sound at once too. Each "＋ Anki" of the same pop-up
+uses the same picture and sound.
 
 The sound of the capture is 16-bit PCM in a ring with a clock. A player
 reports a position, the time of that report and the speed; the app maps the
