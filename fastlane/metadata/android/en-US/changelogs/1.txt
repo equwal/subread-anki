@@ -1,0 +1,1 @@
+First release: one tap from the text selection menu, the share sheet, SubRead Dictionary or SubRead Overlay makes a card in AnkiDroid with the word, the reading, the definition, the sentence, a screenshot, the word audio and the sentence audio.

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SubRead Anki</string>
+    <string name="add_label">Add to Anki</string>
+    <string name="capture_label">SubRead Anki: the sentence and a screenshot for a card</string>
+    <string name="capture_summary">Keeps the last text selection and a screenshot for the card.</string>
+    <string name="capture_description">SubRead Anki uses this service for one thing: when you select a text in an app, it keeps that text and takes a screenshot, so that the next card gets the sentence around the word and a picture of the screen. It reads nothing else, keeps only the last selection and the last screenshot, and sends nothing anywhere.</string>
+
+    <string name="about">One tap makes an Anki card: the word, its reading and definition, the sentence it is in, a screenshot, the word audio and the sentence audio. Select a word in any app and choose "Add to Anki" in the menu, share a text, or tap the Anki button in SubRead Dictionary or SubRead Overlay.</string>
+    <string name="privacy">The card goes to AnkiDroid on this device. Nothing leaves the device.</string>
+
+    <string name="step_anki">1. AnkiDroid</string>
+    <string name="anki_missing">AnkiDroid is not installed. The cards go into it.</string>
+    <string name="anki_get">Get AnkiDroid</string>
+    <string name="anki_permission">SubRead Anki needs the permission to write to the AnkiDroid database.</string>
+    <string name="anki_allowed">Allowed</string>
+    <string name="allow">Allow</string>
+    <string name="deck">Deck: %1$s</string>
+    <string name="deck_default">SubRead (made when needed)</string>
+    <string name="note_type">Note type: %1$s</string>
+    <string name="note_type_default">SubRead (made when needed)</string>
+    <string name="choose">Choose</string>
+    <string name="new_deck">New deck…</string>
+    <string name="new_deck_name">Name of the deck</string>
+    <string name="fields">Fields of the note type</string>
+    <string name="fields_why">What goes into each field. The guess comes from the names of the fields.</string>
+    <string name="anki_error">AnkiDroid did not answer: %1$s</string>
+
+    <string name="step_capture">2. Sentence and screenshot</string>
+    <string name="step_capture_why">With the accessibility service on, the app keeps the last text you select in another app and takes a screenshot at that moment. The card then gets the sentence around the word and the picture. Without the service, the sentence is the text you selected, and there is no picture.</string>
+    <string name="capture_on">The service is on.</string>
+    <string name="capture_off">The service is off.</string>
+    <string name="capture_open">Open the accessibility settings</string>
+    <string name="image_on">Screenshot on the card: on</string>
+    <string name="image_off">Screenshot on the card: off</string>
+
+    <string name="step_audio">3. Audio</string>
+    <string name="audio_on">Word audio from SubRead Dictionary: on</string>
+    <string name="audio_off">Word audio from SubRead Dictionary: off</string>
+    <string name="sentence_audio_on">Sentence audio from the voice of the device: on</string>
+    <string name="sentence_audio_off">Sentence audio from the voice of the device: off</string>
+    <string name="turn_on">Turn on</string>
+    <string name="turn_off">Turn off</string>
+
+    <string name="step_card">4. The card</string>
+    <string name="dictionary_on">Definition from SubRead Dictionary: on</string>
+    <string name="dictionary_off">Definition from SubRead Dictionary: off</string>
+    <string name="at_once_on">Add at once: a word with a definition goes to Anki without a question.</string>
+    <string name="at_once_off">Show the card first: each card waits for the Add button.</string>
+    <string name="at_once_show">Show the card first</string>
+    <string name="at_once_add">Add at once</string>
+    <string name="tags">Tags, separated by spaces</string>
+    <string name="save">Save</string>
+    <string name="saved">Saved.</string>
+
+    <string name="step_try">5. Try it</string>
+    <string name="try_hint">A word, or a sentence</string>
+    <string name="try_add">Make a card</string>
+
+    <string name="dictionary_note">SubRead Dictionary gives the definition, the reading and the word audio. It reads Yomitan dictionaries.</string>
+    <string name="open_dictionary">Open SubRead Dictionary</string>
+    <string name="install_dictionary">Install SubRead Dictionary</string>
+    <string name="donate">Support the app on Ko-fi</string>
+
+    <string name="sheet_title">Add to Anki</string>
+    <string name="settings">Settings</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="add">Add to Anki</string>
+    <string name="adding">Adding…</string>
+    <string name="word">Word</string>
+    <string name="reading">Reading</string>
+    <string name="definition">Definition</string>
+    <string name="no_definition">No definition. Install SubRead Dictionary and import a dictionary, or type one here.</string>
+    <string name="no_definition_found">No entry for this word in SubRead Dictionary.</string>
+    <string name="pick_word">Tap the word in the text.</string>
+    <string name="sentence">Sentence</string>
+    <string name="image">Screenshot</string>
+    <string name="image_none">No screenshot.</string>
+    <string name="remove">Remove</string>
+    <string name="word_audio">Word audio</string>
+    <string name="sentence_audio">Sentence audio</string>
+    <string name="tags_short">Tags</string>
+    <string name="no_text">The text is empty.</string>
+    <string name="no_word">Type the word first.</string>
+    <string name="added">Added to Anki: %1$s</string>
+    <string name="added_again">Added to Anki: %1$s (already there: %2$d)</string>
+    <string name="permission_denied">Without the permission, no card can go to AnkiDroid.</string>
+
+    <string name="error_deck">The deck could not be made.</string>
+    <string name="error_model">The note type could not be made.</string>
+    <string name="error_empty">Every field of the note is empty. Check the fields in the settings.</string>
+    <string name="error_note">AnkiDroid did not take the note.</string>
+    <string name="error_media">AnkiDroid did not take the file %1$s.</string>
+</resources>

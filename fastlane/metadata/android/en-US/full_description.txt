@@ -1,0 +1,7 @@
+One tap makes an Anki card on Android: the word, its reading and its definition, the sentence the word is in, a screenshot of the screen, the word audio and the sentence audio. The card goes into AnkiDroid on the device. Nothing leaves the device.
+
+It works with any app. Select a word and choose "Add to Anki" in the text selection menu, share a text, or tap "Anki" in SubRead Dictionary or SubRead Overlay.
+
+The definition, the reading and the word audio come from SubRead Dictionary, which reads Yomitan dictionaries. The sentence and the screenshot come from the capture service: an accessibility service that keeps the last text you select and a screenshot of that moment. The service is optional and off until you turn it on. The voice of the device reads the sentence.
+
+The app makes a "SubRead" note type and deck on the first card. Any other note type works: the settings map each field to a part of the card.
