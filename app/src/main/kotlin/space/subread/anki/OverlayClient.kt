@@ -16,7 +16,13 @@ import space.subread.anki.core.PlayerReport
 object OverlayClient {
 
     const val PACKAGE = "space.subread.overlay"
-    const val AUTHORITY = "space.subread.overlay.player"
+
+    /** The release authority, then the one of a debug build, which installs next to the release. */
+    val AUTHORITIES = listOf("space.subread.overlay.player", "space.subread.overlay.debug.player")
+
+    /** The authority of the installed overlay, or null without one. */
+    fun authority(context: Context): String? =
+        AUTHORITIES.firstOrNull { context.packageManager.resolveContentProvider(it, 0) != null }
 
     /** The subtitle line of now. The times are on the clock of the subtitle file. */
     data class Line(
@@ -33,14 +39,23 @@ object OverlayClient {
     /** What the overlay knows now. [report] is on the clock of `SystemClock.elapsedRealtimeNanos()`. */
     data class Now(val report: PlayerReport?, val player: String?, val line: Line?)
 
-    fun installed(context: Context): Boolean =
-        context.packageManager.resolveContentProvider(AUTHORITY, 0) != null
+    fun installed(context: Context): Boolean = authority(context) != null
 
-    /** The line of now and the player. Null when the overlay is not installed or does not answer. */
+    /**
+     * The line of now and the player. Null when the overlay is not installed or does not answer.
+     * With a release and a debug overlay side by side, the one that shows a line wins, else the
+     * one that sees a player.
+     */
     fun now(context: Context): Now? {
-        if (!installed(context)) return null
+        val answers = AUTHORITIES.mapNotNull { authority ->
+            if (context.packageManager.resolveContentProvider(authority, 0) == null) null else now(context, authority)
+        }
+        return answers.firstOrNull { it.line != null } ?: answers.firstOrNull { it.report != null } ?: answers.firstOrNull()
+    }
+
+    private fun now(context: Context, authority: String): Now? {
         val cursor = runCatching {
-            context.contentResolver.query("content://$AUTHORITY/line".toUri(), null, null, null, null)
+            context.contentResolver.query("content://$authority/line".toUri(), null, null, null, null)
         }.getOrNull() ?: return null
         cursor.use { c ->
             if (!c.moveToFirst()) return null

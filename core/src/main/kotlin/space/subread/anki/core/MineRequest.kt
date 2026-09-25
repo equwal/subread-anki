@@ -163,10 +163,11 @@ data class MineRequest(
             return out
         }
 
-        private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
+        // The charset goes by name: the Charset overloads are Java 10, and Android has Java 8 here.
+        private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 
         private fun decode(value: String): String = try {
-            URLDecoder.decode(value, Charsets.UTF_8)
+            URLDecoder.decode(value, "UTF-8")
         } catch (e: IllegalArgumentException) {
             // A stray `%`: keep the text as it is instead of losing the request.
             value

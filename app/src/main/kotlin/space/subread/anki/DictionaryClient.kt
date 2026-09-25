@@ -16,7 +16,13 @@ import androidx.core.net.toUri
 object DictionaryClient {
 
     const val PACKAGE = "space.subread.dictionary"
-    const val AUTHORITY = "space.subread.dictionary.lookup"
+
+    /** The release authority, then the one of a debug build, which installs next to the release. */
+    val AUTHORITIES = listOf("space.subread.dictionary.lookup", "space.subread.dictionary.debug.lookup")
+
+    /** The authority of the installed dictionary that answers, or null. */
+    fun authority(context: Context): String? =
+        AUTHORITIES.firstOrNull { context.packageManager.resolveContentProvider(it, 0) != null }
 
     /** One term: the entries of every dictionary for it, joined. */
     data class Entry(
@@ -36,16 +42,16 @@ object DictionaryClient {
 
     fun installed(context: Context): Boolean = runCatching {
         context.packageManager.getPackageInfo(PACKAGE, 0)
-    }.isSuccess
+    }.isSuccess || authority(context) != null
 
     /** True when the installed dictionary has the provider: the versions before it do not. */
-    fun answers(context: Context): Boolean =
-        context.packageManager.resolveContentProvider(AUTHORITY, 0) != null
+    fun answers(context: Context): Boolean = authority(context) != null
 
     /** The terms at the start of [text]. Empty when the dictionary is not there or has no term. */
     fun lookup(context: Context, text: String): List<Entry> {
-        if (text.isEmpty() || !answers(context)) return emptyList()
-        val uri = "content://$AUTHORITY/terms".toUri().buildUpon().appendQueryParameter("text", text).build()
+        val authority = authority(context)
+        if (text.isEmpty() || authority == null) return emptyList()
+        val uri = "content://$authority/terms".toUri().buildUpon().appendQueryParameter("text", text).build()
         val cursor = runCatching { context.contentResolver.query(uri, null, null, null, null) }.getOrNull() ?: return emptyList()
         data class Row(val expression: String, val reading: String, val length: Int, val dictionary: String, val glossary: String, val frequency: String, val pitch: String)
         val rows = cursor.use { c ->
@@ -70,7 +76,7 @@ object DictionaryClient {
                 },
                 frequency = group.map { it.frequency }.firstOrNull { it.isNotEmpty() }.orEmpty(),
                 pitch = group.map { it.pitch }.firstOrNull { it.isNotEmpty() }.orEmpty(),
-                audio = "content://$AUTHORITY/audio".toUri().buildUpon()
+                audio = "content://$authority/audio".toUri().buildUpon()
                     .appendQueryParameter("expression", key.first).appendQueryParameter("reading", key.second).build(),
             )
         }
@@ -84,7 +90,7 @@ object DictionaryClient {
         val name = context.contentResolver.query(ask, null, null, null, null)?.use { c ->
             if (c.moveToFirst()) c.text("file") else null
         } ?: return null
-        val file = "content://$AUTHORITY/audio/$name".toUri()
+        val file = "content://${ask.authority}/audio/$name".toUri()
         context.contentResolver.openInputStream(file)?.use { it.readBytes() }?.takeIf { it.isNotEmpty() }
     }.getOrNull()
 
