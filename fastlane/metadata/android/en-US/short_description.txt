@@ -1,0 +1,1 @@
+﻿One tap makes an Anki card: word, definition, sentence, its sound, a picture.

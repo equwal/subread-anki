@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The cards go into AnkiDroid through its API. Android asks the user once. -->
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <!-- For an audio or a picture at a URL that a sender gives, for example a web reader. Nothing else. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        The capture: the sound and the screen of the player, while the user has it on. Android
+        asks the user each time the capture starts, and shows it in the status bar.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The apps this one talks to. Android 11 and later hide other apps without this. -->
+    <queries>
+        <package android:name="com.ichi2.anki" />
+        <package android:name="space.subread.overlay" />
+        <package android:name="space.subread.dictionary" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/icon"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+
+        <!-- The settings: AnkiDroid, the deck, the note type, the capture. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            The one way in. It shows nothing: it takes the request, fills what is missing,
+            adds the card and closes. Five doors: the text selection menu of Android, the share
+            sheet (a text or a picture), the action space.subread.anki.action.ADD from another
+            app, and the link subreadanki://add from a web page. See README.md.
+        -->
+        <activity
+            android:name=".AddActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/add_label"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="space.subread.anki.action.ADD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="subreadanki" android:host="add" />
+            </intent-filter>
+        </activity>
+
+        <!-- Asks Android for the capture, then starts the service. Shows nothing of its own. -->
+        <activity
+            android:name=".CaptureActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Keeps the last minutes of the sound of the player and the last picture of the screen. -->
+        <service
+            android:name=".CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- The tile in the quick settings: capture on, capture off. -->
+        <service
+            android:name=".CaptureTile"
+            android:exported="true"
+            android:icon="@drawable/icon"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Hands a media file to AnkiDroid, which copies it into the collection. -->
+        <provider
+            android:name=".MediaProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

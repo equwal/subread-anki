@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card with a corner turned: black on white, the same as the other SubRead icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M0,0h48v48h-48z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M10,8h20l8,8v24h-28zM12,10v28h24v-20h-8v-8zM16,22h16v2h-16zM16,27h16v2h-16zM16,32h10v2h-10z" />
+</vector>

@@ -1,0 +1,26 @@
+Categories:
+  - Science & Education
+License: AGPL-3.0-only
+AuthorName: equwal
+SourceCode: https://github.com/equwal/subread-anki
+IssueTracker: https://github.com/equwal/subread-anki/issues
+Changelog: https://github.com/equwal/subread-anki/releases
+Donate: https://ko-fi.com/truex
+
+AutoName: SubRead Anki
+
+RepoType: git
+Repo: https://github.com/equwal/subread-anki.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

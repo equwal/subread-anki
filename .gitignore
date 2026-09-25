@@ -1,0 +1,20 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Fixtures made from text that is not public domain stay on the machine
+# that generated them. Tests skip this directory when it is missing.
+core/src/test/resources/golden-local/
+
+# On-device test media. Bring your own pair; the test skips without it.
+app/src/androidTest/assets/local/
+
+
+# Python byte code
+__pycache__/

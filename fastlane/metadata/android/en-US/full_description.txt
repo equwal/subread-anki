@@ -1,0 +1,20 @@
+SubRead Anki makes an Anki card with one tap: the word, its reading and definition, the sentence it is in, the sound of that sentence, and a picture of the screen. The card goes into AnkiDroid on the device. It is made for people who read and listen in a language that they learn.
+
+<b>What it does</b>
+
+* A tap on a word of the subtitle line of SubRead Overlay makes the card: the line is the sentence, and its times cut the sound of the audiobook.
+* "Anki" in the text selection menu of any app: a reader, a browser, an OCR app. Select a word, tap once.
+* The share sheet: a text, or a picture for the last card.
+* Another app, or a link on a web page, can send a whole card: word, sentence, audio and its times, picture.
+* The reading, the definition, the pitch accent, the frequency and the word audio come from SubRead Dictionary.
+* The capture keeps the last minute and a half of the sound of the device and the last picture of the screen, while it is on. A tile in the quick settings starts and stops it.
+* Works with the Lapis note type, the basic note types, or its own.
+* Black on white and nothing that moves: usable on an e-ink screen.
+
+<b>Permissions</b>
+
+* AnkiDroid: to add the cards.
+* Screen capture and the microphone permission: for the sound of the player and the picture of the screen, only while the capture is on. Android asks each time it starts. No microphone is recorded.
+* Internet: only for an audio or a picture at a URL that a sender gives.
+
+Nothing leaves the device.
