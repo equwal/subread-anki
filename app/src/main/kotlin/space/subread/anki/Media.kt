@@ -38,6 +38,11 @@ object Media {
      */
     fun fetch(context: Context, source: String, stem: String, kind: Kind): File? {
         val bytes = runCatching { bytes(context, source) }.getOrNull() ?: return null
+        return write(context, bytes, stem, kind)
+    }
+
+    /** Writes the bytes of a file of [kind] to the cache, named by what the bytes are. Null for an unknown or empty file. */
+    fun write(context: Context, bytes: ByteArray, stem: String, kind: Kind): File? {
         if (bytes.isEmpty()) return null
         val extension = extension(bytes, kind) ?: return null
         val out = file(context, "$stem.$extension")

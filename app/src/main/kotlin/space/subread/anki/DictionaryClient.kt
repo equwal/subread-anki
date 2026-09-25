@@ -7,8 +7,11 @@ import androidx.core.net.toUri
 
 /**
  * Asks SubRead Dictionary for the terms of a text, through its content provider
- * `content://space.subread.dictionary.lookup/lookup?text=...`. One row for each term of each
- * dictionary, the longest term first. The rows of one term and reading make one [Entry].
+ * `content://space.subread.dictionary.lookup` (see docs/provider-api.md of that app).
+ *
+ * `terms?text=…` gives one row for each term of each dictionary, the longest term first. The
+ * rows of one term and reading make one [Entry]. `audio?expression=…&reading=…` gives one row
+ * with the file of the first source that has the audio, and `audio/<file>` its bytes.
  */
 object DictionaryClient {
 
@@ -25,7 +28,7 @@ object DictionaryClient {
         val glossary: String,
         val frequency: String,
         val pitch: String,
-        /** Where the audio of the word is, or null. */
+        /** Where the audio of the word is asked for, or null. */
         val audio: Uri?,
     ) {
         val headword: String get() = if (reading.isEmpty() || reading == expression) expression else "$expression【$reading】"
@@ -42,16 +45,16 @@ object DictionaryClient {
     /** The terms at the start of [text]. Empty when the dictionary is not there or has no term. */
     fun lookup(context: Context, text: String): List<Entry> {
         if (text.isEmpty() || !answers(context)) return emptyList()
-        val uri = "content://$AUTHORITY/lookup".toUri().buildUpon().appendQueryParameter("text", text).build()
+        val uri = "content://$AUTHORITY/terms".toUri().buildUpon().appendQueryParameter("text", text).build()
         val cursor = runCatching { context.contentResolver.query(uri, null, null, null, null) }.getOrNull() ?: return emptyList()
-        data class Row(val expression: String, val reading: String, val length: Int, val dictionary: String, val glossary: String, val frequency: String, val pitch: String, val audio: String?)
+        data class Row(val expression: String, val reading: String, val length: Int, val dictionary: String, val glossary: String, val frequency: String, val pitch: String)
         val rows = cursor.use { c ->
             buildList {
                 while (c.moveToNext()) add(
                     Row(
                         c.text("expression") ?: continue, c.text("reading").orEmpty(), c.long("length")?.toInt() ?: 0,
-                        c.text("dictionary").orEmpty(), c.text("glossary").orEmpty(), c.text("frequency").orEmpty(),
-                        c.text("pitch").orEmpty(), c.text("audio"),
+                        c.text("dictionary").orEmpty(), c.text("definition_html") ?: c.text("glossary").orEmpty(),
+                        c.text("frequency").orEmpty(), c.text("pitch").orEmpty(),
                     ),
                 )
             }
@@ -67,10 +70,23 @@ object DictionaryClient {
                 },
                 frequency = group.map { it.frequency }.firstOrNull { it.isNotEmpty() }.orEmpty(),
                 pitch = group.map { it.pitch }.firstOrNull { it.isNotEmpty() }.orEmpty(),
-                audio = first.audio?.toUri(),
+                audio = "content://$AUTHORITY/audio".toUri().buildUpon()
+                    .appendQueryParameter("expression", key.first).appendQueryParameter("reading", key.second).build(),
             )
         }
     }
+
+    /**
+     * The bytes of the audio of a term, or null when no source has it. The provider names the
+     * file in a row first, then gives the bytes at `audio/<file>`.
+     */
+    fun audio(context: Context, ask: Uri): ByteArray? = runCatching {
+        val name = context.contentResolver.query(ask, null, null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.text("file") else null
+        } ?: return null
+        val file = "content://$AUTHORITY/audio/$name".toUri()
+        context.contentResolver.openInputStream(file)?.use { it.readBytes() }?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
 
     private fun escape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 

@@ -106,9 +106,9 @@ class Miner(private val context: Context) {
         }
         val sentenceAudio = plan.sentenceAudio?.let { anki.addMedia(it, "audio") }.orEmpty()
         val image = plan.image?.let { anki.addMedia(it, "image") }.orEmpty()
-        val wordAudio = (request.wordAudio ?: entry?.audio?.toString())
-            ?.let { Media.fetch(context, it, "${plan.stem}_word", Media.Kind.AUDIO) }
-            ?.let { anki.addMedia(it, "audio") }.orEmpty()
+        val wordAudioFile = request.wordAudio?.let { Media.fetch(context, it, "${plan.stem}_word", Media.Kind.AUDIO) }
+            ?: entry?.audio?.let { ask -> DictionaryClient.audio(context, ask)?.let { Media.write(context, it, "${plan.stem}_word", Media.Kind.AUDIO) } }
+        val wordAudio = wordAudioFile?.let { anki.addMedia(it, "audio") }.orEmpty()
         val note = Note(
             expression = expression,
             reading = request.reading ?: entry?.reading.orEmpty(),

@@ -31,9 +31,10 @@ one for an audio or a picture.
 3. Install SubRead Dictionary and import a dictionary into it, for the
    reading, the definition, the pitch accent, the frequency and the word
    audio.
-4. Install SubRead Overlay, and choose "Anki" as its dictionary. A tap on a
-   word of the subtitle line then makes the card: the line is the sentence,
-   and its times cut the sound.
+4. Install SubRead Overlay, and choose "Anki" as its dictionary, or use its
+   "Anki" button under a selected word. A tap on a word of the subtitle
+   line then makes the card: the line is the sentence, and its times cut
+   the sound.
 5. Start the capture, from the app or from its tile in the quick settings.
    Android asks each time. While the capture is on, the app keeps the last
    minute and a half of the sound of the device and the last picture of the
@@ -97,9 +98,12 @@ startActivityForResult(add, REQUEST_CARD)   // or startActivity
 ```
 
 A `content://` Uri must be one the app may grant: its own `FileProvider`, or
-a document Uri it holds a permission for. A `file://` Uri is refused. Declare
-the package in the manifest of the calling app, or Android 11 and later hide
-it:
+a document Uri it holds a permission for. A `file://` Uri is refused. The
+extras of the intent API of the `main` branch are taken too, with their
+meaning there: `WORD`, `TEXT`, `AUDIO` (the word audio), `SENTENCE_AUDIO`,
+`SHOW`. The "Anki" buttons of SubRead Overlay and SubRead Dictionary send
+those. Declare the package in the manifest of the calling app, or Android 11
+and later hide it:
 
 ```xml
 <queries>
@@ -174,7 +178,7 @@ moments. The clip is encoded with the AAC encoder of Android.
 
 SubRead Overlay answers `content://space.subread.overlay.player/line` with
 the line of now and the report of the player. SubRead Dictionary answers
-`content://space.subread.dictionary.lookup/lookup?text=…` with the terms,
+`content://space.subread.dictionary.lookup/terms?text=…` with the terms,
 and gives the word audio through the same provider. Their READMEs have the
 details.
 
