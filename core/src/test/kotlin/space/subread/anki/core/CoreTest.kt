@@ -369,6 +369,31 @@ class FieldsTest {
         assertEquals(NoteType.CARD_NAMES.size, NoteType.QUESTION_FORMATS.size)
         assertEquals(NoteType.CARD_NAMES.size, NoteType.ANSWER_FORMATS.size)
     }
+
+    /** The front is the sentence with the picture and its sound; the definition and the word audio are behind. */
+    @Test
+    fun theDefinitionAndTheWordAudioAreBehind() {
+        val front = NoteType.QUESTION_FORMATS.single()
+        val back = NoteType.ANSWER_FORMATS.single().substringAfter("<hr id=\"answer\">")
+        for (field in listOf("Sentence", "Image", "SentenceAudio")) assertTrue("$field in front", front.contains("{{$field}}"))
+        for (field in listOf("Definition", "WordAudio", "Reading")) {
+            assertFalse("$field not in front", front.contains("{{$field}}"))
+            assertTrue("$field behind", back.contains("{{$field}}"))
+        }
+    }
+
+    @Test
+    fun onlyTheTemplatesOfTheFirstVersionChange() {
+        val old = NoteType.OLD_QUESTION_FORMATS[0] to NoteType.OLD_ANSWER_FORMATS[0]
+        assertEquals(NoteType.QUESTION_FORMATS[0] to NoteType.ANSWER_FORMATS[0], NoteType.upgrade(0, old.first, old.second))
+        // AnkiDroid can give the text back with other line ends.
+        assertEquals(NoteType.QUESTION_FORMATS[0] to NoteType.ANSWER_FORMATS[0], NoteType.upgrade(0, old.first.replace("\n", "\r\n"), old.second))
+        assertNull("a template that the user changed stays", NoteType.upgrade(0, old.first + "<br>", old.second))
+        assertNull("the new templates stay", NoteType.upgrade(0, NoteType.QUESTION_FORMATS[0], NoteType.ANSWER_FORMATS[0]))
+        assertNull("no such template", NoteType.upgrade(1, old.first, old.second))
+        assertEquals(NoteType.CSS, NoteType.upgradeCss(NoteType.OLD_CSS))
+        assertNull(NoteType.upgradeCss(NoteType.CSS))
+    }
 }
 
 /** The text of the pop-up and the sentence of a card. */
@@ -394,18 +419,68 @@ class ScansTest {
 
     @Test
     fun theSenderSentenceWinsThenTheLineThenTheSelection() {
-        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", false), Scans.resolve("食べた", "猫が魚を食べた。", "犬だ。"))
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", false, 3), Scans.resolve("食べた", "猫が魚を食べた。", "犬だ。"))
         assertEquals(Scan("猫が魚を食べた。", -1, "食べる", false), Scans.resolve("食べる", "猫が魚を食べた。", null))
-        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", true), Scans.resolve("食べた", null, "猫が魚を食べた。"))
-        assertEquals(Scan("食べた", 0, "食べた", false), Scans.resolve("食べた", null, "犬だ。"))
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", true, 3), Scans.resolve("食べた", null, "猫が魚を食べた。"))
+        assertEquals(Scan("食べた", 0, "食べた", false, 3), Scans.resolve("食べた", null, "犬だ。"))
         assertEquals(Scan("猫が魚を食べた。", 0, null, false), Scans.resolve(null, "猫が魚を食べた。", null))
         assertNull(Scans.resolve(" ", null, "猫だ。"))
+    }
+
+    /** SubRead Dictionary sends its pop-up text as the sentence: often the selected word alone. */
+    @Test
+    fun aSenderSentenceThatIsTheWordIsNoSentence() {
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", true, 3), Scans.resolve("食べた", "食べた", "猫が魚を食べた。"))
+        assertEquals(Scan("食べた", 0, "食べた", false, 3), Scans.resolve("食べた", " 食べた ", null))
+    }
+
+    @Test
+    fun theSelectedLineOfTheOverlayWinsAndBringsItsSound() {
+        val row = Around("犬が肉を食べた。", 4, 7)
+        // The selected line is older than the line of now; the dictionary sent its dictionary form and the word as it is.
+        assertEquals(Scan("犬が肉を食べた。", 4, "食べる", true, 3), Scans.resolve("食べる", "食べた", "猫が魚を食べた。", row = row))
+        // The Anki button of the overlay sends the line as the sentence.
+        assertEquals(Scan("犬が肉を食べた。", 4, "食べた", true, 3), Scans.resolve("食べた", "犬が肉を食べた。", null, row = row))
+        // A selection of another word on the overlay is not this request.
+        assertEquals(Scan("食べた", 0, "食べた", false, 3), Scans.resolve("食べた", null, null, row = Around("犬が肉を食べた。", 0, 1)))
+    }
+
+    @Test
+    fun theViewOfAnotherAppGivesTheSentenceAroundTheSelection() {
+        val view = Around("犬だ。猫が魚を食べた。鳥が飛んだ。", 7, 10)
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べた", false, 3), Scans.resolve("食べた", null, "鳥だ。", view = view))
+        // The dictionary form from SubRead Dictionary, with its pop-up text as the sentence.
+        assertEquals(Scan("猫が魚を食べた。", 4, "食べる", false, 3), Scans.resolve("食べる", "食べた", null, view = view))
+        // A real sentence of the sender wins over the view.
+        assertEquals(Scan("馬が草を食べた。", 4, "食べた", false, 3), Scans.resolve("食べた", "馬が草を食べた。", null, view = view))
+        // A view whose selection is another word does not count.
+        assertEquals(Scan("食べた", 0, "食べた", false, 3), Scans.resolve("食べた", null, null, view = Around("犬だ。", 0, 1)))
+    }
+
+    /** The selection in the text of the scan is the selection of the row or the view, whatever the order of the sources. */
+    @Test
+    fun theSelectionOfTheScanIsTheSelectionOfItsSource() = property {
+        val around: Arb<Around> = arbitrary {
+            val text = piece.bind() + piece.bind() + piece.bind()
+            val start = Arb.int(0 until text.length).bind()
+            Around(text, start, Arb.int(start + 1..text.length).bind())
+        }
+        checkAll(around.orNull(0.4), around.orNull(0.4), piece.orNull(0.3)) { row, view, line ->
+            // The request is the selection of the row, else of the view, as the overlay or the app sends it.
+            val selection = (row ?: view)?.selected ?: return@checkAll
+            val scan = Scans.resolve(selection, null, line, row, view) ?: return@checkAll
+            if (scan.offset >= 0 && scan.length > 0) {
+                val marked = scan.text.substring(scan.offset, scan.offset + scan.length)
+                assertEquals(selection.trim(), marked.trim())
+            }
+            if (row != null && row.selected.isNotBlank()) assertTrue("the selected row wins", scan.fromLine && scan.text == row.text)
+        }
     }
 
     @Test
     fun theSentenceIsInTheText() = property {
         checkAll(anyText, Arb.int(0..50), Arb.int(0..10)) { text, start, length ->
-            val sentence = Scans.sentence(text, start, length)
+            val sentence = Scans.cut(text, start, length).sentence
             assertTrue("$sentence is in $text", sentence.isEmpty() || text.contains(sentence))
             assertTrue(sentence.isEmpty() || sentence.length > length)
         }
@@ -413,9 +488,59 @@ class ScansTest {
 
     @Test
     fun aWordAloneIsNoSentence() {
-        assertEquals("", Scans.sentence("食べた", 0, 3))
-        assertEquals("猫が魚を食べた。", Scans.sentence("犬だ。猫が魚を食べた。", 7, 3))
-        assertEquals("", Scans.sentence("", 0, 0))
+        assertEquals(Cut("", -1), Scans.cut("食べた", 0, 3))
+        assertEquals(Cut("猫が魚を食べた。", 4), Scans.cut("犬だ。猫が魚を食べた。", 7, 3))
+        assertEquals(Cut("", -1), Scans.cut("", 0, 0))
+    }
+
+    @Test
+    fun theCutPointsAtTheWord() = property {
+        checkAll(anyText, Arb.int(0..50), Arb.int(1..10)) { text, start, length ->
+            if (start + length > text.length) return@checkAll
+            val word = text.substring(start, start + length)
+            val cut = Scans.cut(text, start, length)
+            // A word with spaces at its ends loses them in the trimmed sentence: then the word is not found.
+            if (cut.at >= 0) assertTrue("${cut.sentence} has $word at ${cut.at}", cut.sentence.startsWith(word, cut.at))
+            // A word of a sentence with more in it is in its own sentence, whole.
+            if (cut.sentence.isNotEmpty() && word == word.trim()) assertTrue("${cut.sentence} holds $word", cut.at >= 0)
+        }
+    }
+}
+
+/** The word in bold on the card: the tapped word, as it is in the sentence. */
+class BoldTest {
+
+    private val piece: Arb<String> = text(20, listOf("食", "べ", "た", "る", "猫", "。", "<", "&", " ", "a"), least = 1)
+
+    /** The card of the word from [start] of [text], [length] characters long, as the pop-up makes it. */
+    private fun bold(text: String, start: Int, length: Int): Pair<Cut, String> {
+        val cut = Scans.cut(text, start, length)
+        val note = Note(expression = "食べる", sentence = cut.sentence, selection = text.substring(start, start + length), selectionAt = cut.at)
+        return cut to Fields.value(note, Source.SENTENCE_BOLD)
+    }
+
+    @Test
+    fun theTappedWordIsBoldAndTheRestIsEscaped() = property {
+        checkAll(piece, Arb.int(0..19), Arb.int(1..4)) { text, start, length ->
+            if (start + length > text.length) return@checkAll
+            val word = text.substring(start, start + length)
+            val (cut, html) = bold(text, start, length)
+            assertEquals(cut.sentence, Sentences.unescape(Sentences.stripTags(html)))
+            if (cut.at < 0) return@checkAll
+            val open = html.indexOf("<b>")
+            val close = html.indexOf("</b>")
+            assertTrue(html, open >= 0 && close > open)
+            assertEquals(word, Sentences.unescape(html.substring(open + 3, close)))
+            // The bold is at the tapped word, also when the same text is earlier in the sentence.
+            assertEquals(cut.sentence.substring(0, cut.at), Sentences.unescape(html.substring(0, open)))
+        }
+    }
+
+    @Test
+    fun theSecondOfTwoSameWordsIsBoldWhenItIsTheTappedOne() {
+        assertEquals("食べた後でまた<b>食べた</b>。", bold("犬だ。食べた後でまた食べた。", 10, 3).second)
+        assertEquals("<b>食べた</b>後でまた食べた。", bold("犬だ。食べた後でまた食べた。", 3, 3).second)
+        assertEquals("a &lt; <b>&amp;</b> &lt;b&gt;", bold("a < & <b>", 4, 1).second)
     }
 }
 

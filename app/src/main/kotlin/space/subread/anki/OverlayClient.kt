@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.os.SystemClock
 import androidx.core.net.toUri
+import space.subread.anki.core.Around
 import space.subread.anki.core.PlayerReport
 
 /**
@@ -36,21 +37,26 @@ object OverlayClient {
         val offsetMs: Long,
     )
 
-    /** What the overlay knows now. [report] is on the clock of `SystemClock.elapsedRealtimeNanos()`. */
-    data class Now(val report: PlayerReport?, val player: String?, val line: Line?)
+    /**
+     * What the overlay knows now. [report] is on the clock of `SystemClock.elapsedRealtimeNanos()`.
+     * While the user has a word selected on the panel, [line] is the line of that word, which
+     * can be an older line than the line of now, and [selection] is the word in it.
+     */
+    data class Now(val report: PlayerReport?, val player: String?, val line: Line?, val selection: Around? = null)
 
     fun installed(context: Context): Boolean = authority(context) != null
 
     /**
      * The line of now and the player. Null when the overlay is not installed or does not answer.
-     * With a release and a debug overlay side by side, the one that shows a line wins, else the
-     * one that sees a player.
+     * With a release and a debug overlay side by side, the one with a selection wins, then the
+     * one that shows a line, else the one that sees a player.
      */
     fun now(context: Context): Now? {
         val answers = AUTHORITIES.mapNotNull { authority ->
             if (context.packageManager.resolveContentProvider(authority, 0) == null) null else now(context, authority)
         }
-        return answers.firstOrNull { it.line != null } ?: answers.firstOrNull { it.report != null } ?: answers.firstOrNull()
+        return answers.firstOrNull { it.selection != null } ?: answers.firstOrNull { it.line != null }
+            ?: answers.firstOrNull { it.report != null } ?: answers.firstOrNull()
     }
 
     private fun now(context: Context, authority: String): Now? {
@@ -72,7 +78,13 @@ object OverlayClient {
                 after = c.text("after"),
                 offsetMs = c.long("offset") ?: 0,
             )
-            return Now(report, player, line)
+            // An overlay before the scroll back has no "selected" column: it has no selection.
+            val selection = if (text != null && c.long("selected") == 1L) {
+                Around(text, c.long("selection_start")?.toInt() ?: -1, c.long("selection_end")?.toInt() ?: -1).takeIf { it.valid }
+            } else {
+                null
+            }
+            return Now(report, player, line, selection)
         }
     }
 

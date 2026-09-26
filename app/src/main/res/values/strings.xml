@@ -46,7 +46,14 @@
     <string name="capture_no_record">The capture needs the microphone permission of Android, for the sound of the player. No microphone is recorded.</string>
     <string name="pad">Sound before and after a subtitle line, in milliseconds</string>
 
-    <string name="step_options">5. Options</string>
+    <string name="step_sentence">5. The sentence from any app</string>
+    <string name="sentence_why">With the accessibility service \"SubRead Anki: sentence\" on, a word that you select in another app comes with the sentence around it. The service reads only the text of the view where you select a word, when the selection changes. It keeps the newest selection in memory, takes no picture, and sends nothing anywhere. Without it, the sentence comes from the app that sends the word, or from SubRead Overlay.</string>
+    <string name="sentence_settings">Open the accessibility settings</string>
+    <string name="text_service_label">SubRead Anki: sentence</string>
+    <string name="text_service_summary">The sentence around a selected word, for the Anki card.</string>
+    <string name="text_service_description">Reads the text of the view where you select a word, so that the card gets the sentence around the word. It keeps the newest selection in memory only, takes no picture, and sends nothing anywhere.</string>
+
+    <string name="step_options">6. Options</string>
     <string name="popup_on">A selected text: show the pop-up</string>
     <string name="popup_off">A selected text: add the first term at once, with no pop-up</string>
     <string name="duplicates_skip">A word that is in the deck already: skip</string>
@@ -55,8 +62,10 @@
     <string name="save">Save</string>
     <string name="saved">Saved.</string>
     <string name="toggle">Change</string>
+    <string name="voice_on">A word with no audio in the dictionary: the voice of the device reads it for the card</string>
+    <string name="voice_off">A word with no audio in the dictionary: no word audio</string>
 
-    <string name="step_try">6. Try it</string>
+    <string name="step_try">7. Try it</string>
     <string name="try_hint">A sentence</string>
     <string name="try_look_up">Look up</string>
 

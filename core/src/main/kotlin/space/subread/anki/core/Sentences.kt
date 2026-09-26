@@ -54,15 +54,16 @@ object Sentences {
     }
 
     /**
-     * The sentence as HTML, with the first occurrence of [word] in `<b>`. When the word is
-     * not in the sentence, the sentence is only escaped.
+     * The sentence as HTML, with [word] in `<b>`: the word at [at] when it is there, else the
+     * first occurrence of it. A tap on the second of two same words makes the second one bold.
+     * When the word is not in the sentence, the sentence is only escaped.
      */
-    fun emphasize(sentence: String, word: String?): String {
+    fun emphasize(sentence: String, word: String?, at: Int = -1): String {
         if (word.isNullOrEmpty()) return escape(sentence)
-        val at = sentence.indexOf(word)
-        if (at < 0) return escape(sentence)
-        return escape(sentence.substring(0, at)) + "<b>" + escape(word) + "</b>" +
-            escape(sentence.substring(at + word.length))
+        val start = if (at >= 0 && sentence.startsWith(word, at)) at else sentence.indexOf(word)
+        if (start < 0) return escape(sentence)
+        return escape(sentence.substring(0, start)) + "<b>" + escape(word) + "</b>" +
+            escape(sentence.substring(start + word.length))
     }
 
     /** Text made safe for HTML. */

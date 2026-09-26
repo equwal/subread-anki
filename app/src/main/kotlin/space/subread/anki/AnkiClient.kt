@@ -1,8 +1,11 @@
 package space.subread.anki
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import com.ichi2.anki.FlashCardsContract
 import com.ichi2.anki.api.AddContentApi
 import com.ichi2.anki.api.NoteInfo
 import space.subread.anki.core.Fields
@@ -41,8 +44,13 @@ class AnkiClient(private val context: Context) {
     fun ensureModel(deckId: Long): Long {
         val models = models()
         val chosen = store.modelId
-        if (chosen != Store.NONE && models.containsKey(chosen)) return chosen
-        val id = models.entries.firstOrNull { it.value == NoteType.NAME }?.key
+        if (chosen != Store.NONE && models.containsKey(chosen)) {
+            if (models[chosen] == NoteType.NAME) upgrade(chosen)
+            return chosen
+        }
+        val own = models.entries.firstOrNull { it.value == NoteType.NAME }?.key
+        own?.let { upgrade(it) }
+        val id = own
             ?: api.addNewCustomModel(
                 NoteType.NAME,
                 NoteType.FIELDS.toTypedArray(),
@@ -57,6 +65,41 @@ class AnkiClient(private val context: Context) {
         store.modelId = id
         store.mapping = NoteType.MAPPING
         return id
+    }
+
+    /**
+     * Changes the templates and the CSS of the app's own note type from the first version to the
+     * current ones: the sentence, the picture and its sound in front; the definition and the
+     * word audio behind. AnkiDroid changes them through its content provider. A template or a
+     * CSS that the user changed stays as it is. The app tries once for each note type.
+     */
+    private fun upgrade(modelId: Long) {
+        if (store.upgradedModelId == modelId) return
+        store.upgradedModelId = modelId
+        val resolver = context.contentResolver
+        val model = Uri.withAppendedPath(FlashCardsContract.Model.CONTENT_URI, modelId.toString())
+        val templates = Uri.withAppendedPath(model, TEMPLATES)
+        runCatching {
+            resolver.query(templates, null, null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val ord = c.getInt(c.getColumnIndexOrThrow(FlashCardsContract.CardTemplate.ORD))
+                    val question = c.getString(c.getColumnIndexOrThrow(FlashCardsContract.CardTemplate.QUESTION_FORMAT)).orEmpty()
+                    val answer = c.getString(c.getColumnIndexOrThrow(FlashCardsContract.CardTemplate.ANSWER_FORMAT)).orEmpty()
+                    val (newQuestion, newAnswer) = NoteType.upgrade(ord, question, answer) ?: continue
+                    val values = ContentValues().apply {
+                        put(FlashCardsContract.CardTemplate.QUESTION_FORMAT, newQuestion)
+                        put(FlashCardsContract.CardTemplate.ANSWER_FORMAT, newAnswer)
+                    }
+                    resolver.update(Uri.withAppendedPath(templates, ord.toString()), values, null, null)
+                }
+            }
+            val css = resolver.query(model, null, null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(c.getColumnIndexOrThrow(FlashCardsContract.Model.CSS)) else null
+            }
+            NoteType.upgradeCss(css.orEmpty())?.let { newCss ->
+                resolver.update(model, ContentValues().apply { put(FlashCardsContract.Model.CSS, newCss) }, null, null)
+            }
+        }
     }
 
     /** The note type of the cards when it exists already, or null. Makes nothing: for a look before the first card. */
@@ -120,6 +163,12 @@ class AnkiClient(private val context: Context) {
 
     companion object {
         const val DECK_NAME = "SubRead"
+
+        /**
+         * The path of the card templates of a note type in the provider of AnkiDroid:
+         * `models/<id>/templates/<ord>`. The API library has no constant for it.
+         */
+        private const val TEMPLATES = "templates"
         const val PERMISSION = AddContentApi.READ_WRITE_PERMISSION
 
         /** The package of AnkiDroid, or null when it is not installed. */

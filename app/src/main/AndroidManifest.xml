@@ -85,6 +85,23 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!--
+            The sentence around a word selected in another app. Off until the user turns it on
+            in the accessibility settings of Android. See TextService.
+        -->
+        <service
+            android:name=".TextService"
+            android:exported="true"
+            android:label="@string/text_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/text_service" />
+        </service>
+
         <!-- Keeps the last minutes of the sound of the player and the last picture of the screen. -->
         <service
             android:name=".CaptureService"

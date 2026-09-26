@@ -101,8 +101,9 @@ class AddActivity : Activity() {
             work.execute { finishAfter(runCatching { miner.attachPicture(image) }.getOrElse { Miner.Result.Failed(it.message ?: it.toString()) }) }
             return
         }
-        val overlay = if (parsed.sentence.isNullOrBlank()) OverlayClient.now(this) else null
-        val scan = Scans.resolve(parsed.expression, parsed.sentence, overlay?.line?.text) ?: run {
+        // The overlay answers with the line that the user selected, else with the line of now.
+        val overlay = OverlayClient.now(this)
+        val scan = Scans.resolve(parsed.expression, parsed.sentence, overlay?.line?.text, overlay?.selection, TextService.recent()) ?: run {
             finishWith("empty")
             return
         }
@@ -152,8 +153,9 @@ class AddActivity : Activity() {
         work.execute {
             val result = runCatching {
                 val word = scan.word
+                val length = scan.length.takeIf { it > 0 } ?: word?.length ?: 0
                 val card = if (request.definition != null) {
-                    if (word != null && scan.offset >= 0) Miner.card(request, scan.text, scan.offset, word.length, null)
+                    if (scan.offset >= 0 && length > 0) Miner.card(request, scan.text, scan.offset, length, null)
                     else Miner.card(request, scan.text, -1, 0, null)
                 } else if (scan.offset >= 0) {
                     val entry = DictionaryClient.lookup(this, scan.text, scan.offset).firstOrNull()

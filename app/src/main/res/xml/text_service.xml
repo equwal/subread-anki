@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The service for the sentence. It gets one kind of event: a text selection changed in an
+    app. It reads the text of that view, for the sentence around the word. It takes no picture.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewTextSelectionChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/text_service_description"
+    android:notificationTimeout="100"
+    android:summary="@string/text_service_summary" />

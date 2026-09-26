@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.icu.text.BreakIterator
 import android.net.Uri
 import space.subread.anki.core.Fields
+import space.subread.anki.core.Kana
 import space.subread.anki.core.MediaNames
 import space.subread.anki.core.MineRequest
 import space.subread.anki.core.Note
@@ -23,17 +24,40 @@ class Miner(private val context: Context) {
 
     private val store = Store(context)
 
-    /** The media of one text, taken when it came in. One pop-up can add several cards with it. */
+    /**
+     * The media of one text, taken when it came in. One pop-up can add several cards with it.
+     * The pop-up can crop or remove the picture and record the sound again: it changes them on
+     * its work thread, the same thread that adds the cards.
+     */
     class Grab(
         val request: MineRequest,
         val stem: String,
-        val picture: File?,
-        val sentenceAudio: File?,
+        picture: File?,
+        sentenceAudio: File?,
         /** How long the sentence sound is, in milliseconds, or null without one. */
-        val soundMs: Long?,
+        var soundMs: Long?,
         /** Where the text is from: the sender, the player, or the app that sent it. */
         val source: String,
     ) {
+        /** The picture as it came: a new crop starts from it. */
+        val original: File? = picture
+
+        /** The picture of the card: the one that came, a crop of it, or null when the user removed it. */
+        var picture: File? = picture
+            set(value) {
+                field = value
+                ankiPicture = null
+            }
+
+        /** The last crop of [original]: left, top, right, bottom, in pixels of the picture. Null: no crop. */
+        var cropBox: FloatArray? = null
+
+        var sentenceAudio: File? = sentenceAudio
+            set(value) {
+                field = value
+                ankiSound = null
+            }
+
         // The names in the media folder of AnkiDroid, once the first card copied the files.
         internal var ankiPicture: String? = null
         internal var ankiSound: String? = null
@@ -47,6 +71,8 @@ class Miner(private val context: Context) {
         val sentence: String,
         /** The word as it is in the sentence, for the bold. */
         val selection: String,
+        /** Where [selection] starts in [sentence], or -1. */
+        val selectionAt: Int,
         val pitch: String,
         val frequency: String,
         /** Where the dictionary gives the audio of the word, or null. */
@@ -124,6 +150,7 @@ class Miner(private val context: Context) {
         val stem = MediaNames.stem(card.expression.ifEmpty { "card" }, System.currentTimeMillis())
         val wordAudioFile = grab.request.wordAudio?.let { Media.fetch(context, it, "${stem}_word", Media.Kind.AUDIO) }
             ?: card.wordAudio?.let { ask -> DictionaryClient.audio(context, ask)?.let { Media.write(context, it, "${stem}_word", Media.Kind.AUDIO) } }
+            ?: if (store.voiceWord) voice(card, stem) else null
         val wordAudio = wordAudioFile?.let { anki.addMedia(it, "audio") }.orEmpty()
         val note = Note(
             expression = card.expression,
@@ -137,6 +164,7 @@ class Miner(private val context: Context) {
             pitch = card.pitch,
             frequency = card.frequency,
             selection = card.selection,
+            selectionAt = card.selectionAt,
         )
         val values = Fields.render(note, fields, mapping)
         val tags = (store.tags.split(' ') + grab.request.tags).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
@@ -144,6 +172,16 @@ class Miner(private val context: Context) {
         store.lastNoteId = noteId
         store.lastNoteAt = System.currentTimeMillis()
         return Result.Added(noteId, card.expression)
+    }
+
+    /**
+     * The word read by the voice of the device, as a wave file: the reading when there is one.
+     * Null when the device has no voice for the language. Slow: not on the UI thread.
+     */
+    private fun voice(card: Card, stem: String): File? {
+        val spoken = Kana.spoken(card.expression, card.reading) ?: return null
+        val out = Media.file(context, "${stem}_word.wav")
+        return out.takeIf { Speech(context).synthesize(spoken, it, japanese = Kana.hasJapanese(spoken)) }
     }
 
     /** A picture shared on its own goes onto the last card of the hour. Not on the UI thread. */
@@ -186,12 +224,16 @@ class Miner(private val context: Context) {
         fun card(request: MineRequest, text: String, start: Int, length: Int, entry: DictionaryClient.Entry?): Card {
             val inText = start >= 0 && length > 0 && start + length <= text.length
             val selection = if (inText) text.substring(start, start + length) else ""
+            val cut = if (inText) Scans.cut(text, start, length) else null
+            // A sender with its own definition is a dictionary: its word is the dictionary form.
+            val senderTerm = request.expression?.trim()?.takeIf { it.isNotEmpty() && request.definition != null }
             return Card(
-                expression = entry?.expression ?: selection.ifEmpty { request.expression?.trim().orEmpty() },
+                expression = entry?.expression ?: senderTerm ?: selection.ifEmpty { request.expression?.trim().orEmpty() },
                 reading = request.reading ?: entry?.reading.orEmpty(),
                 definition = request.definition ?: entry?.glossary.orEmpty(),
-                sentence = if (inText) Scans.sentence(text, start, length) else request.sentence?.trim().orEmpty(),
+                sentence = cut?.sentence ?: request.sentence?.trim().orEmpty(),
                 selection = selection,
+                selectionAt = cut?.at ?: -1,
                 pitch = request.pitch ?: entry?.pitch.orEmpty(),
                 frequency = request.frequency ?: entry?.frequency.orEmpty(),
                 wordAudio = entry?.audio,

@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputType
 import android.view.View
 import android.widget.Button
@@ -104,12 +105,20 @@ class MainActivity : Activity() {
         note(getString(R.string.pad), top = 12)
         numberField(store.padMs) { store.padMs = it }
 
+        // The accessibility service: Android turns it on and off in its own settings.
+        val sentences = TextService.isEnabled(this)
+        step(R.string.step_sentence, getString(R.string.sentence_why), getString(R.string.sentence_settings), done = sentences) {
+            runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
+
         step(R.string.step_options, getString(if (store.addAtOnce) R.string.popup_off else R.string.popup_on), getString(R.string.toggle)) {
             store.addAtOnce = !store.addAtOnce
             draw()
         }
         note(getString(if (store.skipDuplicates) R.string.duplicates_skip else R.string.duplicates_add), top = 12)
         content.addView(button(getString(R.string.toggle)) { store.skipDuplicates = !store.skipDuplicates; draw() }, narrow())
+        note(getString(if (store.voiceWord) R.string.voice_on else R.string.voice_off), top = 12)
+        content.addView(button(getString(R.string.toggle)) { store.voiceWord = !store.voiceWord; draw() }, narrow())
         note(getString(R.string.tags), top = 12)
         textField(store.tags) { store.tags = it }
 

@@ -19,6 +19,8 @@ data class Note(
     val frequency: String = "",
     /** The word as it is in the sentence, when it differs from [expression]: `食べた` for `食べる`. */
     val selection: String = "",
+    /** Where [selection] starts in [sentence]. -1: the first occurrence of the word counts. */
+    val selectionAt: Int = -1,
 )
 
 /** What a field of the note type is filled with. */
@@ -57,7 +59,11 @@ object Fields {
         Source.FURIGANA -> furigana(note.expression, note.reading)
         Source.DEFINITION -> note.definition
         Source.SENTENCE -> Sentences.escape(note.sentence)
-        Source.SENTENCE_BOLD -> Sentences.emphasize(note.sentence, note.selection.ifEmpty { note.expression }.takeIf { it.isNotEmpty() })
+        Source.SENTENCE_BOLD -> if (note.selection.isNotEmpty()) {
+            Sentences.emphasize(note.sentence, note.selection, note.selectionAt)
+        } else {
+            Sentences.emphasize(note.sentence, note.expression.takeIf { it.isNotEmpty() })
+        }
         Source.SENTENCE_AUDIO -> sound(note.sentenceAudioFile)
         Source.WORD_AUDIO -> sound(note.wordAudioFile)
         Source.IMAGE -> image(note.imageFile)

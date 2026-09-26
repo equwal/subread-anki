@@ -45,6 +45,16 @@ class Store(context: Context) {
         get() = prefs.getBoolean("skip_duplicates", true)
         set(value) = prefs.edit { putBoolean("skip_duplicates", value) }
 
+    /** True: when the dictionary has no audio for the word, the voice of the device reads it for the card. */
+    var voiceWord: Boolean
+        get() = prefs.getBoolean("voice_word", true)
+        set(value) = prefs.edit { putBoolean("voice_word", value) }
+
+    /** The note type of the app whose templates the app changed to the current ones already. */
+    var upgradedModelId: Long
+        get() = prefs.getLong("upgraded_model_id", NONE)
+        set(value) = prefs.edit { putLong("upgraded_model_id", value) }
+
     /** Sound before and after the subtitle line in the clip, in milliseconds. */
     var padMs: Int
         get() = prefs.getInt("pad_ms", 250)
