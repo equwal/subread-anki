@@ -1,1 +1,1 @@
-Select a text in any app, tap a word, tap + Anki: a card with sentence, picture, sound.
+Select a word in any app: an Anki card with its sentence, picture and sound

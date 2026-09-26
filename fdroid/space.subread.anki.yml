@@ -11,6 +11,7 @@ AutoName: SubRead Anki
 
 RepoType: git
 Repo: https://github.com/equwal/subread-anki.git
+Binaries: https://github.com/equwal/subread-anki/releases/download/v%v/SubRead-Anki-%v.apk
 
 Builds:
   - versionName: 0.1.0
@@ -19,6 +20,8 @@ Builds:
     subdir: app
     gradle:
       - yes
+
+AllowedAPKSigningKeys: e46f72ef28c79489cad0f1eee60cbf7fd3f29b5bff1bb1d82bab1e30427ff44f
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
