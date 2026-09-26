@@ -39,6 +39,24 @@ object Scans {
     }
 
     /**
+     * Where [expression] is in [text], also in another form. A sender gives the dictionary form
+     * (`食べる`) and a sentence with the form of the text (`食べた`). [termsAt] gives the terms that
+     * start at a position of the text, with the characters that each covers: the dictionary finds
+     * `食べる` at `食べた`. Null when the text holds the expression in no form.
+     */
+    fun locate(text: String, expression: String, termsAt: (Int) -> List<Pair<String, Int>>): IntRange? {
+        if (expression.isEmpty()) return null
+        val direct = text.indexOf(expression)
+        if (direct >= 0) return direct until direct + expression.length
+        for (at in text.indices) {
+            if (text[at].isWhitespace()) continue
+            val length = termsAt(at).firstOrNull { it.first == expression }?.second ?: continue
+            if (length > 0) return at until minOf(text.length, at + length)
+        }
+        return null
+    }
+
+    /**
      * The sentence of the card for a word that starts at [start] and is [length] characters
      * long: the sentence of [text] around it. Empty when the text is the word alone: a word is
      * no sentence.

@@ -128,6 +128,16 @@ class MineRequestTest {
 /** Sentences around a word. */
 class SentencesTest {
 
+    /** The sentence of [text] that holds the first [word], or null when the word is not in the text. */
+    private fun around(text: String, word: String): String? {
+        val at = text.indexOf(word)
+        return if (word.isEmpty() || at < 0) null else text.substring(Sentences.rangeAround(text, at)).trim()
+    }
+
+    /** The text of HTML that [Sentences.emphasize] and [Sentences.escape] wrote. */
+    private fun plain(html: String): String = html.replace(Regex("<[^>]*>"), "")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
+
     private val sentenceBody: Arb<String> = text(12, listOf("a", "b", "c", "d", "猫", "ね", "こ", " ", "「", "」"), least = 1)
     private val terminator: Arb<String> = Arb.element(listOf("。", "！", "？", "!", "?", "…", "\n", "。」", "！？"))
 
@@ -143,7 +153,7 @@ class SentencesTest {
             val word = body.trim().takeIf { it.isNotEmpty() && '」' !in it && '「' !in it } ?: return@checkAll
             // The first occurrence of the word counts: skip a word that is in an earlier sentence.
             if (sentences.take(i).any { it.contains(word) }) return@checkAll
-            val found = Sentences.around(text, word)
+            val found = around(text, word)
             assertEquals(sentences[i].trim(), found)
         }
     }
@@ -151,7 +161,7 @@ class SentencesTest {
     @Test
     fun theSentenceIsInTheTextAndHoldsTheWord() = property {
         checkAll(anyText, text(3, listOf("a", "b", "猫", "ね", "。"), least = 1)) { text, word ->
-            val found = Sentences.around(text, word)
+            val found = around(text, word)
             if (!text.contains(word)) {
                 assertNull(found)
             } else {
@@ -164,19 +174,19 @@ class SentencesTest {
 
     @Test
     fun closersStayWithTheirSentence() {
-        assertEquals("「猫だ。」", Sentences.around("「猫だ。」犬だ。", "猫"))
-        assertEquals("犬だ。", Sentences.around("「猫だ。」犬だ。", "犬"))
-        assertEquals("It rains!?", Sentences.around("Sun. It rains!? Yes.", "rains"))
-        assertEquals("two", Sentences.around("one\ntwo\nthree", "two"))
-        assertEquals("It is 3.5 km.", Sentences.around("Far. It is 3.5 km. Go.", "km"))
-        assertEquals("「猫だ」と言った。", Sentences.around("「猫だ」と言った。犬だ。", "猫"))
+        assertEquals("「猫だ。」", around("「猫だ。」犬だ。", "猫"))
+        assertEquals("犬だ。", around("「猫だ。」犬だ。", "犬"))
+        assertEquals("It rains!?", around("Sun. It rains!? Yes.", "rains"))
+        assertEquals("two", around("one\ntwo\nthree", "two"))
+        assertEquals("It is 3.5 km.", around("Far. It is 3.5 km. Go.", "km"))
+        assertEquals("「猫だ」と言った。", around("「猫だ」と言った。犬だ。", "猫"))
     }
 
     @Test
     fun theEmphasisKeepsTheText() = property {
         checkAll(anyText, anyText.orNull(0.2)) { sentence, word ->
             val html = Sentences.emphasize(sentence, word)
-            assertEquals(sentence, Sentences.unescape(Sentences.stripTags(html)))
+            assertEquals(sentence, plain(html))
             if (!word.isNullOrEmpty() && word in sentence) assertTrue(html.contains("<b>" + Sentences.escape(word) + "</b>"))
         }
     }
@@ -408,6 +418,32 @@ class ScansTest {
             val sentence = Scans.sentence(text, start, length)
             assertTrue("$sentence is in $text", sentence.isEmpty() || text.contains(sentence))
             assertTrue(sentence.isEmpty() || sentence.length > length)
+        }
+    }
+
+    /** A dictionary of two terms: 食べる for 食べ..., and 猫 for 猫. */
+    private fun termsAt(text: String, at: Int): List<Pair<String, Int>> = buildList {
+        if (text.startsWith("食べ", at)) add("食べる" to minOf(3, text.length - at))
+        if (text.startsWith("猫", at)) add("猫" to 1)
+    }
+
+    @Test
+    fun theDictionaryFormIsFoundInTheFormOfTheText() {
+        // A sender gives 食べる and a sentence with 食べた: the bold and the sentence need 食べた.
+        assertEquals(4..6, Scans.locate("猫が魚を食べた。犬だ。", "食べる") { termsAt("猫が魚を食べた。犬だ。", it) })
+        assertEquals(0..0, Scans.locate("猫が魚を食べた。", "猫") { termsAt("猫が魚を食べた。", it) })
+        assertNull(Scans.locate("犬だ。", "食べる") { termsAt("犬だ。", it) })
+        assertNull(Scans.locate("犬だ。", "") { termsAt("犬だ。", it) })
+        // The card of such a word gets one sentence, not the whole text.
+        assertEquals("猫が魚を食べた。", Scans.sentence("猫が魚を食べた。犬だ。", 4, 3))
+    }
+
+    @Test
+    fun aLocatedWordIsInTheText() = property {
+        checkAll(piece, piece) { text, expression ->
+            val range = Scans.locate(text, expression) { termsAt(text, it) } ?: return@checkAll
+            assertTrue("$range in $text", range.first >= 0 && range.last < text.length && !range.isEmpty())
+            if (text.contains(expression)) assertEquals(text.indexOf(expression), range.first)
         }
     }
 

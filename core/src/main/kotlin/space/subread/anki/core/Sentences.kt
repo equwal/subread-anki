@@ -43,17 +43,6 @@ object Sentences {
     }
 
     /**
-     * The sentence of [text] that holds [word], trimmed, or null when the word is not in the
-     * text. The first occurrence of the word counts.
-     */
-    fun around(text: String, word: String): String? {
-        if (word.isEmpty()) return null
-        val at = text.indexOf(word)
-        if (at < 0) return null
-        return text.substring(rangeAround(text, at)).trim()
-    }
-
-    /**
      * The sentence as HTML, with the first occurrence of [word] in `<b>`. When the word is
      * not in the sentence, the sentence is only escaped.
      */
@@ -77,14 +66,4 @@ object Sentences {
             }
         }
     }
-
-    /** The reverse of [escape]. */
-    fun unescape(html: String): String = html
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&amp;", "&")
-
-    /** HTML with its tags removed. Entities stay as they are. */
-    fun stripTags(html: String): String = html.replace(Regex("<[^>]*>"), "")
 }

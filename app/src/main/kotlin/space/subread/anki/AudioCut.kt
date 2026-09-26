@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import androidx.core.net.toUri
+import space.subread.anki.core.Loudness
 import java.io.File
 import java.nio.ByteOrder
 
@@ -45,7 +46,8 @@ object AudioCut {
             val decoded = decode(extractor, format, startMs * 1000, endMs * 1000) ?: return null
             val (pcm, sampleRate, channels) = decoded
             // Less than a tenth of a second is no sentence: the range was outside the file.
-            if (pcm.size < sampleRate / 10 * channels) return null
+            // Silence is no sentence either: the times of the sender missed the speech.
+            if (pcm.size < sampleRate / 10 * channels || Loudness.isSilent(pcm)) return null
             AacEncoder.encode(pcm, sampleRate, channels, out)
             return out
         } catch (e: Exception) {

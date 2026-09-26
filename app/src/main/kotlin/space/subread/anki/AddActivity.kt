@@ -116,6 +116,8 @@ class AddActivity : Activity() {
             return
         }
         draw()
+        // A pop-up that closes with no card answers "cancelled"; each card replaces this answer.
+        setResult(RESULT_CANCELED, Intent().putExtra(Requests.EXTRA_ERROR, "cancelled"))
         show(scan)
         work.execute {
             val grabbed = runCatching { grab?.get() }.getOrNull()
@@ -152,15 +154,21 @@ class AddActivity : Activity() {
         work.execute {
             val result = runCatching {
                 val word = scan.word
+                // Where the word is in the text, also in another form: for the bold and the sentence.
+                val found = if (scan.offset >= 0 || word == null) null else locate(scan.text, word)
+                val at = if (scan.offset >= 0) scan.offset else found?.first ?: -1
                 val card = if (request.definition != null) {
-                    if (word != null && scan.offset >= 0) Miner.card(request, scan.text, scan.offset, word.length, null)
-                    else Miner.card(request, scan.text, -1, 0, null)
-                } else if (scan.offset >= 0) {
-                    val entry = DictionaryClient.lookup(this, scan.text, scan.offset).firstOrNull()
+                    when {
+                        found != null -> Miner.card(request, scan.text, found.first, found.count(), null)
+                        word != null && at >= 0 -> Miner.card(request, scan.text, at, word.length, null)
+                        else -> Miner.card(request, scan.text, -1, 0, null)
+                    }
+                } else if (at >= 0) {
+                    val entry = DictionaryClient.lookup(this, scan.text, at).firstOrNull()
                     if (entry != null) {
-                        Miner.card(request, scan.text, scan.offset, entry.length, entry)
+                        Miner.card(request, scan.text, at, entry.length, entry)
                     } else {
-                        val range = Miner.wordAt(scan.text, scan.offset, selected = isSelection(scan.text, scan.offset))
+                        val range = Miner.wordAt(scan.text, at, selected = isSelection(scan.text, at))
                         Miner.card(request, scan.text, range.first, range.count(), null)
                     }
                 } else {
@@ -189,7 +197,8 @@ class AddActivity : Activity() {
             }
             Miner.Result.Attached -> {
                 toast(getString(R.string.picture_attached))
-                finishWith(null)
+                setResult(RESULT_OK, Intent().putExtra(Requests.EXTRA_NOTE_ID, store.lastNoteId))
+                finish()
             }
             is Miner.Result.Failed -> {
                 toast(getString(R.string.failed, result.why))
@@ -221,7 +230,6 @@ class AddActivity : Activity() {
         textView = TextView(this).apply {
             textSize = TEXT_SP + 3
             setTextColor(Color.BLACK)
-            maxLines = 5
             setPadding(dp(16), dp(4), dp(16), dp(4))
             setOnTouchListener { view, event ->
                 if (event.action == MotionEvent.ACTION_UP) {
@@ -247,12 +255,19 @@ class AddActivity : Activity() {
             addView(smallButton(getString(R.string.settings)) { startActivity(Intent(this@AddActivity, MainActivity::class.java)) })
             addView(smallButton(getString(R.string.close)) { finish() })
         }
+        // A long selection scrolls in its own box, at most three tenths of the pop-up, so that
+        // each character stays in reach and the terms keep their room.
+        val textCap = height * 3 / 10
+        val textBox = object : ScrollView(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(textCap, MeasureSpec.AT_MOST))
+        }.apply { addView(textView) }
         setContentView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.WHITE)
                 addView(bar, LinearLayout.LayoutParams(-1, -2))
-                addView(textView, LinearLayout.LayoutParams(-1, -2))
+                addView(textBox, LinearLayout.LayoutParams(-1, -2))
                 addView(status, LinearLayout.LayoutParams(-1, -2))
                 addView(View(this@AddActivity).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)))
                 addView(ScrollView(this@AddActivity).apply { addView(results) }, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -264,8 +279,25 @@ class AddActivity : Activity() {
     private fun show(scan: Scan) {
         text = scan.text
         textView.text = text
-        if (scan.offset >= 0) scanAt(scan.offset) else lookUpWord(scan.word.orEmpty())
+        if (scan.offset >= 0) {
+            scanAt(scan.offset)
+            return
+        }
+        // The word of the sender is not in the text as it is: the dictionary finds its form there.
+        val word = scan.word.orEmpty()
+        val run = ++generation
+        thread {
+            val range = locate(text, word)
+            runOnUiThread {
+                if (run != generation || isFinishing) return@runOnUiThread
+                if (range != null) scanAt(range.first) else lookUpWord(word)
+            }
+        }
     }
+
+    /** Where [word] is in [text], also in another form, found with the dictionary. Not on the UI thread. */
+    private fun locate(text: String, word: String): IntRange? =
+        Scans.locate(text, word) { at -> DictionaryClient.lookup(this, text, at).map { it.expression to it.length } }
 
     /** Looks up the terms that start at [at] in the text. */
     private fun scanAt(at: Int) {
@@ -277,7 +309,7 @@ class AddActivity : Activity() {
         }
     }
 
-    /** The word of the sender is not in the text: its terms, with nothing marked. */
+    /** The word of the sender is not in the text in any form: its terms, with nothing marked. */
     private fun lookUpWord(word: String) {
         val run = ++generation
         thread {
@@ -345,6 +377,12 @@ class AddActivity : Activity() {
     /** One tap: the card goes to AnkiDroid. The button says when it is there. */
     private fun addCard(button: Button, entry: DictionaryClient.Entry?, start: Int, length: Int) {
         val grabbed = grab ?: return
+        // AnkiDroid has not allowed the app yet: ask again, and keep the button for the next tap.
+        if (!AnkiClient.hasPermission(this)) {
+            toast(getString(R.string.anki_no_permission))
+            requestPermissions(arrayOf(AnkiClient.PERMISSION), PERMISSION)
+            return
+        }
         button.isEnabled = false
         button.text = "…"
         val card = Miner.card(request, text, start, length, entry)
@@ -417,23 +455,27 @@ class AddActivity : Activity() {
         return parts.joinToString("   ")
     }
 
-    /** Plays the audio of the word from the dictionary. */
+    /**
+     * Plays the audio of the word from the dictionary. The file is written off the UI thread,
+     * and the player prepares on its own thread. A pop-up that closed in the meantime plays
+     * nothing: its onDestroy has already run, and no later player would be released.
+     */
     private fun play(entry: DictionaryClient.Entry) {
         val ask = entry.audio ?: return
         thread {
-            val bytes = DictionaryClient.audio(this, ask)
+            val file = DictionaryClient.audio(this, ask)?.let { bytes -> File(cacheDir, "play.tmp").apply { writeBytes(bytes) } }
             runOnUiThread {
-                if (bytes == null) {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (file == null) {
                     toast(getString(R.string.no_audio))
                     return@runOnUiThread
                 }
                 player?.release()
-                val file = File(cacheDir, "play.tmp").apply { writeBytes(bytes) }
                 player = runCatching {
                     MediaPlayer().apply {
                         FileInputStream(file).use { setDataSource(it.fd) }
-                        prepare()
-                        start()
+                        setOnPreparedListener { it.start() }
+                        prepareAsync()
                     }
                 }.getOrNull()
             }

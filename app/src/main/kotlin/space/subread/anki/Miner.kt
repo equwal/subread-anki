@@ -186,8 +186,11 @@ class Miner(private val context: Context) {
         fun card(request: MineRequest, text: String, start: Int, length: Int, entry: DictionaryClient.Entry?): Card {
             val inText = start >= 0 && length > 0 && start + length <= text.length
             val selection = if (inText) text.substring(start, start + length) else ""
+            // A sender with its own definition names the word of the card. The text can hold
+            // that word in another form: 食べる of the sender is 食べた in the text.
+            val given = request.expression?.trim()?.takeIf { it.isNotEmpty() && request.definition != null }
             return Card(
-                expression = entry?.expression ?: selection.ifEmpty { request.expression?.trim().orEmpty() },
+                expression = entry?.expression ?: given ?: selection.ifEmpty { request.expression?.trim().orEmpty() },
                 reading = request.reading ?: entry?.reading.orEmpty(),
                 definition = request.definition ?: entry?.glossary.orEmpty(),
                 sentence = if (inText) Scans.sentence(text, start, length) else request.sentence?.trim().orEmpty(),
