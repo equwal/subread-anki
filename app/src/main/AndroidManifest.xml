@@ -85,6 +85,12 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- The crop screen: the picture of a card, and a rectangle to cut it. -->
+        <activity
+            android:name=".CropActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
         <!--
             The sentence around a word selected in another app. Off until the user turns it on
             in the accessibility settings of Android. See TextService.

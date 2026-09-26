@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.MediaPlayer
@@ -22,6 +23,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -39,10 +41,16 @@ import kotlin.concurrent.thread
 
 /**
  * The pop-up. It takes a text the way a dictionary does: from the text selection menu of any
- * app, the share sheet, another app, or a link. It shows the text, the terms of SubRead
+ * app, the share sheet, another app, or a link. It shows the sentence, the terms of SubRead
  * Dictionary at the word, and a "+ Anki" button for each term. A tap on a character of the
- * text moves the word there. The card gets the term, the sentence around the word, and the
- * picture and the sound of the moment the text came in.
+ * text moves the word there. The card gets the term, the sentence around the word with the
+ * word in bold, and the picture and the sound of the moment the text came in.
+ *
+ * The sentence comes from the sender, the line that the user selected on SubRead Overlay, or
+ * the text of the view in another app ([TextService]). Under the sentence, the picture and
+ * the sound of the card each have buttons: crop or remove the picture; play, record again or
+ * remove the sound. A new recording takes the sound of the device between "Record" and
+ * "Stop"; meanwhile the pop-up is a small bar, and the player behind it takes the touches.
  *
  * A request that brings its own definition, or the setting "add at once", makes the card with
  * no pop-up: the window stays clear, and a toast says what happened.
@@ -65,9 +73,25 @@ class AddActivity : Activity() {
     private var text = ""
     private var generation = 0
     private var player: MediaPlayer? = null
+
+    /** True while [player] plays the sound of the sentence, not the audio of a word. */
+    private var playsSound = false
+    private lateinit var root: View
     private lateinit var textView: TextView
     private lateinit var status: TextView
     private lateinit var results: LinearLayout
+    private lateinit var pictureView: ImageView
+    private lateinit var pictureButtons: List<View>
+    private lateinit var noPicture: TextView
+    private lateinit var soundButton: Button
+    private lateinit var removeSound: Button
+    private var popupHeight = 0
+
+    /** When the recording started, on the clock of the capture ring; 0 while there is no recording. */
+    private var recordFrom = 0L
+
+    /** True when "Record" waits for the capture that Android asks the user for. */
+    private var recordAfterCapture = false
 
     /** The "+ Anki" button of each term on the screen, with its expression. */
     private val addButtons = ArrayList<Pair<String, Button>>()
@@ -119,10 +143,10 @@ class AddActivity : Activity() {
         draw()
         show(scan)
         work.execute {
-            val grabbed = runCatching { grab?.get() }.getOrNull()
             val deck = runCatching { AnkiClient(this).deckName() }.getOrDefault(AnkiClient.DECK_NAME)
-            runOnUiThread { if (!isFinishing && grabbed != null) status.text = statusLine(grabbed, deck) }
+            runOnUiThread { if (!isFinishing) status.text = getString(R.string.deck_current, deck) }
         }
+        showMedia()
     }
 
     /** True when the card goes to Anki with no pop-up. */
@@ -139,6 +163,18 @@ class AddActivity : Activity() {
             toast(getString(R.string.anki_no_permission))
             if (scan != null) finishWith("no_permission")
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back from the question of Android for the capture: the recording starts when the
+        // capture runs. When the user said no, or the capture is slow, "Record" starts it later.
+        if (recordAfterCapture) window.decorView.postDelayed({
+            if (recordAfterCapture) {
+                recordAfterCapture = false
+                if (CaptureService.instance != null) startRecording()
+            }
+        }, CAPTURE_WAIT_MS)
     }
 
     override fun onDestroy() {
@@ -213,10 +249,10 @@ class AddActivity : Activity() {
     // The touch listener finds the character under the finger; it calls performClick itself.
     @SuppressLint("ClickableViewAccessibility")
     private fun draw() {
-        val height = (resources.displayMetrics.heightPixels * 0.6).toInt()
+        popupHeight = (resources.displayMetrics.heightPixels * 0.6).toInt()
         window.attributes = window.attributes.apply {
             width = ViewGroup.LayoutParams.MATCH_PARENT
-            this.height = height
+            this.height = popupHeight
             gravity = Gravity.BOTTOM
         }
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -237,7 +273,7 @@ class AddActivity : Activity() {
         status = TextView(this).apply {
             textSize = 13f
             setTextColor(Color.DKGRAY)
-            setPadding(dp(16), 0, dp(16), dp(8))
+            setPadding(dp(16), 0, dp(16), dp(4))
             text = "…"
         }
         results = LinearLayout(this).apply {
@@ -246,21 +282,225 @@ class AddActivity : Activity() {
         }
         val bar = LinearLayout(this).apply {
             gravity = Gravity.END
-            addView(smallButton(getString(R.string.settings)) { startActivity(Intent(this@AddActivity, MainActivity::class.java)) })
-            addView(smallButton(getString(R.string.close)) { finish() })
+            addView(slimButton(this@AddActivity, getString(R.string.settings)) { startActivity(Intent(this@AddActivity, MainActivity::class.java)) })
+            addView(slimButton(this@AddActivity, getString(R.string.close)) { finish() })
         }
-        setContentView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setBackgroundColor(Color.WHITE)
-                addView(bar, LinearLayout.LayoutParams(-1, -2))
-                addView(textView, LinearLayout.LayoutParams(-1, -2))
-                addView(status, LinearLayout.LayoutParams(-1, -2))
-                addView(View(this@AddActivity).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)))
-                addView(ScrollView(this@AddActivity).apply { addView(results) }, LinearLayout.LayoutParams(-1, 0, 1f))
-            },
-            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height),
+        root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            addView(bar, LinearLayout.LayoutParams(-1, -2))
+            addView(textView, LinearLayout.LayoutParams(-1, -2))
+            addView(media(), LinearLayout.LayoutParams(-1, -2))
+            addView(status, LinearLayout.LayoutParams(-1, -2))
+            addView(View(this@AddActivity).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)))
+            addView(ScrollView(this@AddActivity).apply { addView(results) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        setContentView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, popupHeight))
+    }
+
+    /** The picture and the sound of the card, each on a row with its buttons. */
+    private fun media(): View {
+        pictureView = ImageView(this).apply {
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_START
+            contentDescription = getString(R.string.crop)
+            setOnClickListener { crop() }
+        }
+        noPicture = TextView(this).apply {
+            text = getString(R.string.no_picture)
+            textSize = 14f
+            setTextColor(Color.DKGRAY)
+            setPadding(0, 0, dp(8), 0)
+        }
+        pictureButtons = listOf(
+            slimButton(this, getString(R.string.crop)) { crop() },
+            slimButton(this, getString(R.string.remove)) { removePicture() },
         )
+        val pictureRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(pictureView, LinearLayout.LayoutParams(-2, dp(PICTURE_DP)).apply { rightMargin = dp(8) })
+            addView(noPicture)
+            pictureButtons.forEach { addView(it) }
+        }
+        soundButton = slimButton(this, getString(R.string.no_sound)) { replay() }
+        removeSound = slimButton(this, getString(R.string.remove)) { removeSound() }
+        val soundRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(soundButton)
+            addView(slimButton(this@AddActivity, getString(R.string.record)) { record() })
+            addView(removeSound)
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+            addView(pictureRow, LinearLayout.LayoutParams(-1, -2))
+            addView(soundRow, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
+
+    /** Shows the picture and the sound of the card as they are now. From any thread: it reads them on the work thread. */
+    private fun showMedia() {
+        work.execute {
+            val grabbed = runCatching { grab?.get() }.getOrNull()
+            val picture = grabbed?.picture
+            val thumbnail = picture?.let { thumbnail(it) }
+            val sound = grabbed?.sentenceAudio
+            val ms = grabbed?.soundMs
+            runOnUiThread {
+                if (isFinishing || !::pictureView.isInitialized) return@runOnUiThread
+                pictureView.setImageBitmap(thumbnail)
+                pictureView.visibility = if (thumbnail != null) View.VISIBLE else View.GONE
+                noPicture.visibility = if (thumbnail != null) View.GONE else View.VISIBLE
+                noPicture.text = getString(if (CaptureService.instance == null && grabbed?.original == null) R.string.status_capture_off else R.string.no_picture)
+                pictureButtons.forEach { it.isEnabled = grabbed?.original != null }
+                pictureButtons.last().isEnabled = picture != null
+                soundButton.isEnabled = sound != null
+                removeSound.isEnabled = sound != null
+                soundButton.text = when {
+                    sound == null -> getString(R.string.no_sound)
+                    playsSound -> getString(R.string.stop)
+                    ms != null -> getString(R.string.sound_seconds, "%.1f".format(ms / 1000.0))
+                    else -> getString(R.string.sound)
+                }
+            }
+        }
+    }
+
+    /** A small copy of the picture for the pop-up: the picture itself can be the size of the screen. */
+    private fun thumbnail(file: File): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        if (bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outHeight / (sample * 2) >= dp(PICTURE_DP)) sample *= 2
+        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    /** Opens the crop screen with the picture as it came, and the last crop of it. */
+    private fun crop() {
+        work.execute {
+            val grabbed = runCatching { grab?.get() }.getOrNull() ?: return@execute
+            val original = grabbed.original ?: return@execute
+            val box = grabbed.cropBox
+            runOnUiThread {
+                val intent = Intent(this, CropActivity::class.java).putExtra(CropActivity.EXTRA_PICTURE, original.path)
+                if (box != null) intent.putExtra(CropActivity.EXTRA_BOX, box)
+                startActivityForResult(intent, CROP)
+            }
+        }
+    }
+
+    @Deprecated("The platform Activity has no other result API, and this app has no AndroidX activity.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != CROP || resultCode != RESULT_OK || data == null) return
+        val path = data.getStringExtra(CropActivity.EXTRA_PICTURE) ?: return
+        val box = data.getFloatArrayExtra(CropActivity.EXTRA_BOX)
+        work.execute {
+            val grabbed = runCatching { grab?.get() }.getOrNull() ?: return@execute
+            grabbed.picture = File(path)
+            grabbed.cropBox = box
+        }
+        showMedia()
+    }
+
+    private fun removePicture() {
+        work.execute { runCatching { grab?.get() }.getOrNull()?.picture = null }
+        showMedia()
+    }
+
+    private fun removeSound() {
+        stopPlayer()
+        work.execute { runCatching { grab?.get() }.getOrNull()?.let { it.sentenceAudio = null; it.soundMs = null } }
+        showMedia()
+    }
+
+    /** Plays the sound of the sentence; a second tap stops it. */
+    private fun replay() {
+        if (playsSound) {
+            stopPlayer()
+            showMedia()
+            return
+        }
+        work.execute {
+            val sound = runCatching { grab?.get() }.getOrNull()?.sentenceAudio
+            runOnUiThread {
+                if (sound == null) return@runOnUiThread
+                playFile(sound, sentence = true)
+                showMedia()
+            }
+        }
+    }
+
+    /**
+     * Starts a new recording of the sound of the sentence. The capture must run: without it,
+     * Android first asks the user for it, and the recording starts when the capture runs.
+     */
+    private fun record() {
+        if (CaptureService.instance == null) {
+            recordAfterCapture = true
+            toast(getString(R.string.record_capture))
+            startActivity(Intent(this, CaptureActivity::class.java))
+            return
+        }
+        startRecording()
+    }
+
+    /**
+     * The pop-up becomes a small bar at the bottom with "Stop" and the seconds. Touches outside
+     * the bar go to the app behind it, so that the user can seek back and play the player.
+     */
+    private fun startRecording() {
+        stopPlayer()
+        recordFrom = SystemClock.elapsedRealtimeNanos()
+        val seconds = TextView(this).apply {
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            setPadding(dp(16), 0, dp(8), 0)
+        }
+        val bar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(Color.WHITE)
+            addView(seconds, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(slimButton(this@AddActivity, getString(R.string.stop)) { stopRecording() }.apply { setTypeface(typeface, Typeface.BOLD) })
+        }
+        setContentView(bar, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        window.attributes = window.attributes.apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
+        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+        setFinishOnTouchOutside(false)
+        val from = recordFrom
+        val tick = object : Runnable {
+            override fun run() {
+                if (recordFrom != from) return
+                val passed = ((SystemClock.elapsedRealtimeNanos() - from) / 1_000_000_000L).toInt()
+                seconds.text = getString(R.string.recording, passed)
+                // The ring keeps a little more than this: the start of the recording must still be in it.
+                if (passed >= MAX_RECORD_S) stopRecording() else seconds.postDelayed(this, 1000)
+            }
+        }
+        tick.run()
+    }
+
+    /** Ends the recording: its sound goes on the card, and the pop-up comes back. */
+    private fun stopRecording() {
+        val from = recordFrom
+        if (from == 0L) return
+        val to = SystemClock.elapsedRealtimeNanos()
+        recordFrom = 0L
+        setContentView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, popupHeight))
+        window.attributes = window.attributes.apply { height = popupHeight }
+        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+        setFinishOnTouchOutside(true)
+        work.execute {
+            val grabbed = runCatching { grab?.get() }.getOrNull() ?: return@execute
+            val clip = CaptureService.instance?.clip(from, to, Media.file(this, "${grabbed.stem}_${System.currentTimeMillis()}.m4a"))
+            if (clip == null) {
+                runOnUiThread { toast(getString(R.string.record_silent)) }
+            } else {
+                grabbed.sentenceAudio = clip
+                grabbed.soundMs = (to - from) / 1_000_000L
+            }
+        }
+        showMedia()
     }
 
     private fun show(scan: Scan) {
@@ -308,9 +548,7 @@ class AddActivity : Activity() {
 
     private fun term(headword: String, entry: DictionaryClient.Entry?, start: Int, length: Int) {
         results.addView(View(this).apply { setBackgroundColor(Color.LTGRAY) }, LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(10) })
-        val add = Button(this).apply {
-            text = getString(R.string.add_card)
-            isAllCaps = false
+        val add = slimButton(this, getString(R.string.add_card)) {}.apply {
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
             setOnClickListener { addCard(this, entry, start, length) }
@@ -325,7 +563,7 @@ class AddActivity : Activity() {
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(Color.BLACK)
                 }, LinearLayout.LayoutParams(0, -2, 1f))
-                if (entry?.audio != null) addView(smallButton("▶") { play(entry) })
+                if (entry?.audio != null) addView(slimButton(this@AddActivity, "▶") { play(entry) })
                 addView(add)
             },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) },
@@ -400,25 +638,6 @@ class AddActivity : Activity() {
         textView.text = shown
     }
 
-    /** What the card gets besides the term: the picture, the sound, and the deck. */
-    private fun statusLine(grabbed: Miner.Grab, deck: String): String {
-        val parts = ArrayList<String>()
-        val captureOff = CaptureService.instance == null
-        if (captureOff && grabbed.picture == null && grabbed.sentenceAudio == null) {
-            parts += getString(R.string.status_capture_off)
-        } else {
-            parts += getString(if (grabbed.picture != null) R.string.status_picture else R.string.status_no_picture)
-            val ms = grabbed.soundMs
-            parts += when {
-                grabbed.sentenceAudio == null -> getString(R.string.status_no_sound)
-                ms != null -> getString(R.string.status_sound_seconds, "%.1f".format(ms / 1000.0))
-                else -> getString(R.string.status_sound)
-            }
-        }
-        parts += getString(R.string.deck_current, deck)
-        return parts.joinToString("   ")
-    }
-
     /** Plays the audio of the word from the dictionary. */
     private fun play(entry: DictionaryClient.Entry) {
         val ask = entry.audio ?: return
@@ -429,17 +648,33 @@ class AddActivity : Activity() {
                     toast(getString(R.string.no_audio))
                     return@runOnUiThread
                 }
-                player?.release()
-                val file = File(cacheDir, "play.tmp").apply { writeBytes(bytes) }
-                player = runCatching {
-                    MediaPlayer().apply {
-                        FileInputStream(file).use { setDataSource(it.fd) }
-                        prepare()
-                        start()
-                    }
-                }.getOrNull()
+                playFile(File(cacheDir, "play.tmp").apply { writeBytes(bytes) }, sentence = false)
+                showMedia()
             }
         }
+    }
+
+    /** Plays [file]. [sentence] is true for the sound of the sentence: its button then says "Stop". */
+    private fun playFile(file: File, sentence: Boolean) {
+        stopPlayer()
+        player = runCatching {
+            MediaPlayer().apply {
+                FileInputStream(file).use { setDataSource(it.fd) }
+                setOnCompletionListener {
+                    playsSound = false
+                    showMedia()
+                }
+                prepare()
+                start()
+            }
+        }.getOrNull()
+        playsSound = sentence && player != null
+    }
+
+    private fun stopPlayer() {
+        player?.release()
+        player = null
+        playsSound = false
     }
 
     private fun finishWith(error: String?) {
@@ -456,21 +691,24 @@ class AddActivity : Activity() {
         LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) },
     )
 
-    private fun smallButton(label: String, onClick: () -> Unit) = Button(this).apply {
-        text = label
-        isAllCaps = false
-        textSize = 13f
-        setOnClickListener { onClick() }
-    }
-
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         private const val PERMISSION = 1
+        private const val CROP = 2
 
         /** The text size of the pop-up, in sp: the same as SubRead Dictionary. */
         private const val TEXT_SP = 17f
+
+        /** The height of the picture in the pop-up, in dp. */
+        private const val PICTURE_DP = 72
+
+        /** A recording stops on its own after this many seconds: the ring of the capture keeps 90 s. */
+        private const val MAX_RECORD_S = CaptureService.SECONDS - 5
+
+        /** How long the pop-up waits for the capture to run after the user allowed it. */
+        private const val CAPTURE_WAIT_MS = 800L
     }
 }

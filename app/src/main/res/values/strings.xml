@@ -79,11 +79,21 @@
     <string name="no_term">No term here. Tap another character, or add the word as it is.</string>
     <string name="no_dictionary">No dictionary: install SubRead Dictionary for the reading and the definition. The word goes on the card as it is.</string>
     <string name="no_audio">No audio for this term.</string>
-    <string name="status_picture">Picture ✓</string>
-    <string name="status_no_picture">No picture</string>
-    <string name="status_sound">Sound ✓</string>
-    <string name="status_sound_seconds">Sound %1$s s ✓</string>
-    <string name="status_no_sound">No sound</string>
+    <string name="no_picture">No picture</string>
+    <string name="no_sound">No sound</string>
+    <string name="sound">▶ Sound</string>
+    <string name="sound_seconds">▶ Sound, %1$s s</string>
+    <string name="stop">■ Stop</string>
+    <string name="crop">Crop</string>
+    <string name="remove">Remove</string>
+    <string name="record">● Record</string>
+    <string name="recording">Recording: %1$d s. Play the media, then stop.</string>
+    <string name="record_capture">Allow the capture. Then the recording starts.</string>
+    <string name="record_silent">The recording had no sound. The card keeps the sound it had.</string>
+    <string name="crop_no_picture">No picture to crop.</string>
+    <string name="crop_whole">Whole picture</string>
+    <string name="crop_done">Done</string>
+    <string name="crop_failed">The crop failed.</string>
     <string name="status_capture_off">Capture off: no picture, no sound</string>
 
     <string name="no_text">The request is empty: no word and no sentence.</string>
