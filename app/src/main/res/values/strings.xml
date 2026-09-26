@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SubRead Anki</string>
-    <string name="add_label">Anki card</string>
     <string name="tile_label">Anki capture</string>
 
-    <string name="about">Select a text in any app and choose "Anki card" in the menu. A pop-up shows the terms at the word, the same as a dictionary. A tap on another character moves the word. Tap "＋ Anki": the card gets the word, its reading and definition, the sentence, a picture of the screen and the sound of the sentence.</string>
+    <string name="about">Select a text in any app and choose "SubRead Anki" in the menu. A pop-up shows the terms at the word, the same as a dictionary. A tap on another character moves the word. Tap "＋ Anki": the card gets the word, its reading and definition, the sentence, a picture of the screen and the sound of the sentence.</string>
     <string name="privacy">Nothing leaves the device. The app talks to AnkiDroid and SubRead Dictionary on the device. It opens a URL only when a sender gives one for an audio or a picture.</string>
 
     <string name="step_anki">1. AnkiDroid</string>

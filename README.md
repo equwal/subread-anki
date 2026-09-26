@@ -1,7 +1,7 @@
 # SubRead Anki
 
 A pop-up for Anki cards, used the same way as a dictionary. Select a text
-in any app (a reader, a browser, an OCR app) and choose "Anki card" in the
+in any app (a reader, a browser, an OCR app) and choose "SubRead Anki" in the
 text selection menu. The pop-up opens over the app and shows the text and
 the terms at the word, from
 [SubRead Dictionary](https://github.com/equwal/subread-dictionary). A tap on
@@ -36,11 +36,15 @@ an audio or a picture.
    the device and the newest picture of the screen. Stop it from the
    notification or the tile.
 
-Then, in any app: select a sentence, choose "Anki card", tap the word in the
+Then, in any app: select a sentence, choose "SubRead Anki", tap the word in the
 pop-up, and tap "＋ Anki". A single selected word works too; the card then
 has no sentence, unless the word is in the subtitle line of SubRead Overlay.
 The button says "✓ Added", and a term that is in the deck already says
 "✓ In Anki". A tap outside the pop-up closes it.
+
+Some browsers (Firefox, Brave) show only some of the apps in the text
+selection menu. There, choose Share and then "SubRead Anki". The app
+removes the link of the page and the quotes that the browser adds.
 
 The line under the text says what the card gets: "Picture ✓   Sound 5.3 s ✓
   Deck: SubRead". The picture is the screen at the moment the text was
@@ -48,7 +52,7 @@ selected, from before the pop-up opened. The sound is the last eight
 seconds before that moment: the audiobook that plays while you read. A clip
 of silence is left out.
 
-Share a picture to "Anki card" within an hour of a card, and it goes onto
+Share a picture to "SubRead Anki" within an hour of a card, and it goes onto
 that card. The option "add the first term at once, with no pop-up" makes a
 selection a card with no pop-up.
 

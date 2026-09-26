@@ -448,10 +448,59 @@ class ScansTest {
     }
 
     @Test
+    fun theFirstScanSkipsQuotesAndBrackets() {
+        // Found on a phone: Brave shared `"老人の…"`, and the first scan landed on the quote.
+        assertEquals(1, Scans.firstLetter("\"老人の尋ね方\"", 0))
+        assertEquals(1, Scans.firstLetter("「猫だ。」", 0))
+        assertEquals(0, Scans.firstLetter("食べた", 0))
+        assertEquals(4, Scans.firstLetter("猫だ。「犬」", 3))
+        assertEquals(0, Scans.firstLetter("。。", 0))
+    }
+
+    @Test
+    fun theFirstScanIsAtTheNextLetter() = property {
+        checkAll(anyText, Arb.int(0..40)) { text, wanted ->
+            val from = wanted.coerceAtMost(text.length)
+            val at = Scans.firstLetter(text, from)
+            val skipped = text.substring(from, maxOf(from, at))
+            assertTrue(skipped.none { it.isLetterOrDigit() })
+            if (text.substring(from).any { it.isLetterOrDigit() }) assertTrue(text[at].isLetterOrDigit()) else assertEquals(from, at)
+        }
+    }
+
+    @Test
     fun aWordAloneIsNoSentence() {
         assertEquals("", Scans.sentence("食べた", 0, 3))
         assertEquals("猫が魚を食べた。", Scans.sentence("犬だ。猫が魚を食べた。", 7, 3))
         assertEquals("", Scans.sentence("", 0, 0))
+    }
+}
+
+/** The text that a browser shares. */
+class SharedTextTest {
+
+    @Test
+    fun theLinkAndTheQuotesOfABrowserGo() {
+        // Found on a phone: the share of Brave, a selection in quotes and a link with a text fragment.
+        val brave = "\"老人の尋ね方が急でしたから、杜子春はさすがに眼を伏せて、思はず正直な答をしました。\"\n" +
+            "https://www.aozora.gr.jp/cards/000879/files/170_15144.html#:~:text=%E8%80%81%E4%BA%BA"
+        assertEquals("老人の尋ね方が急でしたから、杜子春はさすがに眼を伏せて、思はず正直な答をしました。", SharedText.clean(brave))
+        assertEquals("猫だ。", SharedText.clean("“猫だ。” https://example.com/a"))
+        assertEquals("", SharedText.clean("https://example.com/a"))
+    }
+
+    @Test
+    fun aTextWithoutALinkStaysAsItIs() = property {
+        // The pieces hold no ":", so no text of them holds a link. Quotes stay: the user selected them.
+        checkAll(anyText) { plain -> assertEquals(plain.trim(), SharedText.clean(plain)) }
+    }
+
+    @Test
+    fun noLinkIsLeft() = property {
+        checkAll(anyText, anyText) { before, after ->
+            val cleaned = SharedText.clean("$before https://example.com/x?y=1 $after")
+            assertFalse(cleaned, cleaned.contains("https://"))
+        }
     }
 }
 

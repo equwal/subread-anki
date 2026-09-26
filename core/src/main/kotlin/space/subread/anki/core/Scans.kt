@@ -39,6 +39,15 @@ object Scans {
     }
 
     /**
+     * Where the first scan of the pop-up looks up: the first letter or digit of [text] at or
+     * after [from]. A quote or a bracket is no word. [from] when no letter follows.
+     */
+    fun firstLetter(text: String, from: Int): Int {
+        for (at in from until text.length) if (text[at].isLetterOrDigit()) return at
+        return from
+    }
+
+    /**
      * Where [expression] is in [text], also in another form. A sender gives the dictionary form
      * (`食べる`) and a sentence with the form of the text (`食べた`). [termsAt] gives the terms that
      * start at a position of the text, with the characters that each covers: the dictionary finds

@@ -1,4 +1,4 @@
-SubRead Anki is a pop-up for Anki cards, used the same way as a dictionary. Select a text in any app and choose "Anki card" in the text selection menu. The pop-up shows the text and the terms at the word. Tap "＋ Anki": the card goes into AnkiDroid with the word, its reading and definition, the sentence around the word, a picture of the screen and the sound of the sentence. It is made for people who read and listen in a language that they learn.
+SubRead Anki is a pop-up for Anki cards, used the same way as a dictionary. Select a text in any app and choose "SubRead Anki" in the text selection menu. The pop-up shows the text and the terms at the word. Tap "＋ Anki": the card goes into AnkiDroid with the word, its reading and definition, the sentence around the word, a picture of the screen and the sound of the sentence. It is made for people who read and listen in a language that they learn.
 
 <b>What it does</b>
 

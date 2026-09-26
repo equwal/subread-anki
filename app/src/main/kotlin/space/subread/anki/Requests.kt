@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.IntentCompat
 import space.subread.anki.core.MineRequest
+import space.subread.anki.core.SharedText
 
 /** Reads a [MineRequest] from each kind of Intent that [AddActivity] takes. */
 object Requests {
@@ -26,14 +27,15 @@ object Requests {
     /**
      * The request in an Intent, or null when the Intent is none of the kinds the app takes.
      * A text from the selection menu or the share sheet is the word. A picture from the
-     * share sheet is the picture, with the text beside it as the word.
+     * share sheet is the picture, with the text beside it as the word. A browser shares the
+     * link of the page with the text: the link does not go on the card.
      */
     fun fromIntent(intent: Intent): MineRequest? = when (intent.action) {
         Intent.ACTION_PROCESS_TEXT -> MineRequest(expression = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString())
         Intent.ACTION_SEND -> {
             val stream = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-            val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
-            MineRequest(expression = text, image = stream?.toString())
+            val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.let(SharedText::clean)
+            MineRequest(expression = text?.ifEmpty { null }, image = stream?.toString())
         }
         Intent.ACTION_VIEW -> {
             // A web page: the query of the link. An intent: link can carry extras too; they win.

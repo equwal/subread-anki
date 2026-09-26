@@ -221,12 +221,6 @@ class AddActivity : Activity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun draw() {
         val height = (resources.displayMetrics.heightPixels * 0.6).toInt()
-        window.attributes = window.attributes.apply {
-            width = ViewGroup.LayoutParams.MATCH_PARENT
-            this.height = height
-            gravity = Gravity.BOTTOM
-        }
-        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         textView = TextView(this).apply {
             textSize = TEXT_SP + 3
             setTextColor(Color.BLACK)
@@ -274,13 +268,17 @@ class AddActivity : Activity() {
             },
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height),
         )
+        // After setContentView: it sets a floating window to WRAP_CONTENT, which makes a narrow box.
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height)
+        window.setGravity(Gravity.BOTTOM)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
     }
 
     private fun show(scan: Scan) {
         text = scan.text
         textView.text = text
         if (scan.offset >= 0) {
-            scanAt(scan.offset)
+            scanAt(Scans.firstLetter(text, scan.offset))
             return
         }
         // The word of the sender is not in the text as it is: the dictionary finds its form there.

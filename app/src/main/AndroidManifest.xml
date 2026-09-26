@@ -16,11 +16,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- The apps this one talks to. Android 11 and later hide other apps without this. -->
+    <!--
+        The apps this one talks to. Android 11 and later hide other apps without this. The
+        providers are named too, so that the debug builds of the dictionary and the overlay
+        are found as well.
+    -->
     <queries>
         <package android:name="com.ichi2.anki" />
         <package android:name="space.subread.overlay" />
         <package android:name="space.subread.dictionary" />
+        <provider android:authorities="space.subread.dictionary.lookup" />
+        <provider android:authorities="space.subread.dictionary.debug.lookup" />
+        <provider android:authorities="space.subread.overlay.player" />
+        <provider android:authorities="space.subread.overlay.debug.player" />
     </queries>
 
     <application
@@ -42,7 +50,7 @@
 
         <!--
             The pop-up, the same as a dictionary: the text, the terms at the word, and one
-            "+ Anki" button for each. Doors: the text selection menu of Android ("Anki card"),
+            "+ Anki" button for each. Doors: the text selection menu of Android ("SubRead Anki"),
             the share sheet (a text or a picture), the action space.subread.anki.action.ADD
             from another app, and the link subreadanki://add from a web page. A request that
             brings its own definition is added at once, with no pop-up. See README.md.
@@ -51,7 +59,6 @@
             android:name=".AddActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:label="@string/add_label"
             android:taskAffinity=""
             android:theme="@style/Popup">
             <intent-filter>
