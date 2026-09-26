@@ -92,4 +92,34 @@
     <string name="error_empty">Every field of the note is empty. Check the fields in the settings.</string>
     <string name="error_note">AnkiDroid did not take the note.</string>
     <string name="error_media">AnkiDroid did not take the file %1$s.</string>
+
+    <string name="more_apps">More apps</string>
+    <string name="more_subread">SubRead</string>
+    <string name="more_subread_line">Read along with an audiobook.</string>
+    <string name="more_book_simulator">Book Simulator</string>
+    <string name="more_book_simulator_line">A reading room for Aozora Bunko and Project Gutenberg books.</string>
+    <string name="more_honjimaku">honjimaku.com</string>
+    <string name="more_honjimaku_line">Subtitles for Japanese audiobooks.</string>
+    <string name="more_sbm_sync">sbm Sync</string>
+    <string name="more_sbm_sync_line">Your bookmarks, the same on every device.</string>
+    <string name="more_subread_android">SubRead for Android</string>
+    <string name="more_subread_android_line">Times an audiobook against its ebook on the device.</string>
+    <string name="more_subread_overlay">SubRead Overlay</string>
+    <string name="more_subread_overlay_line">Subtitle lines over any Android media player.</string>
+    <string name="more_subread_dictionary">SubRead Dictionary</string>
+    <string name="more_subread_dictionary_line">Pop-up dictionary that reads Yomitan dictionaries.</string>
+    <string name="more_subrep">Subrep</string>
+    <string name="more_subrep_line">Live captions of the sound of your phone.</string>
+    <string name="more_sbm_android">sbm for Android</string>
+    <string name="more_sbm_android_line">Fuzzy search for your bookmarks.</string>
+    <string name="more_rebind">Rebind</string>
+    <string name="more_rebind_line">Remap the hardware buttons of e-ink readers and Android.</string>
+    <string name="more_ink_recents">Ink Recents</string>
+    <string name="more_ink_recents_line">A recent-apps switcher for e-ink.</string>
+    <string name="more_ink_dim">Ink Dim</string>
+    <string name="more_ink_dim_line">Frontlight below the lowest system level.</string>
+    <string name="more_ink_update">Ink Update</string>
+    <string name="more_ink_update_line">Tells you when Rebind and its extensions update.</string>
+    <string name="more_all_projects">All projects</string>
+    <string name="more_all_projects_line">Everything, with source code.</string>
 </resources>
