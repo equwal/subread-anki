@@ -35,18 +35,30 @@ an audio or a picture.
    capture is on, the app keeps the last minute and a half of the sound of
    the device and the newest picture of the screen. Stop it from the
    notification or the tile.
+5. For the sentence around a word that you select in another app, turn on
+   the accessibility service "SubRead Anki: sentence" in the accessibility
+   settings of Android. See [Privacy](#privacy). This step is optional.
 
-Then, in any app: select a sentence, choose "Anki card", tap the word in the
-pop-up, and tap "＋ Anki". A single selected word works too; the card then
-has no sentence, unless the word is in the subtitle line of SubRead Overlay.
-The button says "✓ Added", and a term that is in the deck already says
-"✓ In Anki". A tap outside the pop-up closes it.
+Then, in any app: select a word, choose "Anki card", and tap "＋ Anki" on the
+term. The pop-up shows the sentence around the word when it has one: from
+the app that sends the word, from the line that you selected on SubRead
+Overlay (also an older line that you scrolled back to), or from the view of
+the app, when the accessibility service is on. A tap on another character of
+the sentence moves the word. The button says "✓ Added", and a term that is
+in the deck already says "✓ In Anki". A tap outside the pop-up closes it.
 
-The line under the text says what the card gets: "Picture ✓   Sound 5.3 s ✓
-  Deck: SubRead". The picture is the screen at the moment the text was
-selected, from before the pop-up opened. The sound is the last eight
-seconds before that moment: the audiobook that plays while you read. A clip
-of silence is left out.
+Under the sentence, the pop-up shows what the card gets:
+
+- The picture: the screen at the moment the word was selected, from before
+  the pop-up opened. A tap on it, or "Crop", opens the crop screen: drag the
+  corners, the edges or the inside of the rectangle, then "Done". "Whole
+  picture" undoes the crop. "Remove" leaves the picture off the card.
+- The sound: the subtitle line of SubRead Overlay, or the last eight seconds
+  before that moment. A clip of silence is left out. "▶ Sound" plays it.
+  "● Record" records it again: the pop-up becomes a small bar, and the app
+  behind it takes the touches, so that you can go back in the player and
+  play the sentence. "■ Stop" ends the recording, which then is the sound of
+  the card. "Remove" leaves the sound off the card.
 
 Share a picture to "Anki card" within an hour of a card, and it goes onto
 that card. The option "add the first term at once, with no pop-up" makes a
@@ -57,15 +69,33 @@ selection a card with no pop-up.
 | Part | Where it comes from |
 |---|---|
 | Expression, reading, definition | The term that you tap "＋ Anki" on, from SubRead Dictionary. `食べた` gives the card `食べる`. A sender can give its own. |
-| Sentence | The sentence around the word in the text of the pop-up. The word is in `<b>` as it is in the sentence. |
-| Sentence audio | The sender's file, cut to the times it gives. Else the capture: the subtitle line of SubRead Overlay, cut on the clock of the player with a pad on each side, or the eight seconds before the text came in. AAC in `.m4a`: every player and every Anki has it. |
-| Word audio | The sender, else the audio of SubRead Dictionary (the local audio server, or a remote source when on). |
-| Picture | The sender, else the screen from the capture at the moment the text came in. JPEG, at most 1600 pixels on the long side. |
+| Sentence | The sentence around the word in the text of the pop-up. The word is in `<b>` as it is in the sentence, at the place that you tapped. |
+| Sentence audio | The sender's file, cut to the times it gives. Else the capture: the subtitle line of SubRead Overlay, cut on the clock of the player with a pad on each side, or the eight seconds before the text came in, or your own recording. AAC in `.m4a`: every player and every Anki has it. |
+| Word audio | The sender, else the audio of SubRead Dictionary (the local audio server, or a remote source when on), else the voice of the device reads the word (the reading, for Japanese). The setting "A word with no audio in the dictionary" turns the voice off. |
+| Picture | The sender, else the screen from the capture at the moment the text came in, or your crop of it. JPEG, at most 1600 pixels on the long side. |
 | Source, tags | The sender, else the name of the app that sent the text. The tags of the settings go on every card. |
 
 The note type "SubRead Anki" has the fields Expression, Reading, Definition,
-Sentence, SentenceAudio, WordAudio, Image and Source, and one card: the word
-and the sentence in front, the rest behind, black on white.
+Sentence, SentenceAudio, WordAudio, Image and Source, and one card, black on
+white. In front: the sentence with the word in bold, the picture and the
+sound of the sentence; a card with no sentence shows the word. Behind: the
+word with its reading and its audio, the definition, and the source. A note
+type "SubRead Anki" of the first version, with the word and the sentence in
+front, gets the new templates on the next card, through the content provider
+of AnkiDroid. A template that you changed stays as it is.
+
+## Privacy
+
+The capture takes the sound of the device and pictures of the screen only
+while it is on. Android asks each time it starts, and shows it in the status
+bar.
+
+The accessibility service "SubRead Anki: sentence" gets one kind of event:
+a text selection changed in an app. It keeps the text of that view and the
+selected range of the newest event in memory, for the next card, and
+nothing else. It takes no picture, it does not read a password field, and it
+sends nothing anywhere. It is off until you turn it on, and the app works
+without it.
 
 ## For other apps
 
@@ -186,7 +216,10 @@ out. A pause reported a minute ago still maps its media times to the right
 moments. The clip is encoded with the AAC encoder of Android.
 
 SubRead Overlay answers `content://space.subread.overlay.player/line` with
-the line of now and the report of the player. SubRead Dictionary answers
+the line of now and the report of the player. While a word is selected on
+its panel, it answers with the line of that word and the selected range, so
+that a word from an older line gets its own line and its sound. SubRead
+Dictionary answers
 `content://space.subread.dictionary.lookup/terms?text=…` with the terms,
 and gives the word audio through the same provider. Their READMEs have the
 details.

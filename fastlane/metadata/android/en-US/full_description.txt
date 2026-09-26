@@ -7,6 +7,9 @@ SubRead Anki is a pop-up for Anki cards, used the same way as a dictionary. Sele
 * The reading, the definition and the word audio come from SubRead Dictionary.
 * The capture keeps the sound of the device and the newest picture of the screen while it is on. The card gets the screen of the moment you selected the text, and the sound of the seconds before it: the audiobook that plays while you read. A tile in the quick settings starts and stops it.
 * With SubRead Overlay, a subtitle word shows its whole line, and the card gets the sound of that line.
+* Crop the picture, play the sound, or record the sound again from the player before you add the card.
+* The card has the sentence with the word in bold in front; the definition and the word audio are behind. Without audio in the dictionary, the voice of the device reads the word.
+* An optional accessibility service gives the sentence around a word that you select in another app.
 * Another app, or a link on a web page, can send a whole card: word, sentence, audio and its times, picture.
 * Works with the Lapis note type, the basic note types, or its own.
 * Black on white and nothing that moves: usable on an e-ink screen.
@@ -16,5 +19,6 @@ SubRead Anki is a pop-up for Anki cards, used the same way as a dictionary. Sele
 * AnkiDroid: to add the cards.
 * Screen capture and the microphone permission: for the sound of the player and the picture of the screen, only while the capture is on. Android asks each time it starts. No microphone is recorded.
 * Internet: only for an audio or a picture at a URL that a sender gives.
+* Accessibility service, off until you turn it on: it reads the text of the view where you select a word, keeps the newest selection in memory, and sends nothing anywhere.
 
 Nothing leaves the device.
