@@ -170,7 +170,7 @@ class MainActivity : Activity() {
             val name = field.text.toString().trim()
             if (name.isEmpty()) return@setPositiveButton
             thread {
-                val id = runCatching { AnkiClient(this).run { decks().entries.firstOrNull { it.value == name }?.key ?: addNewDeckOrNull(name) } }.getOrNull()
+                val id = runCatching { AnkiClient(this).run { decks().entries.firstOrNull { it.value == name }?.key ?: addDeck(name) } }.getOrNull()
                 runOnUiThread {
                     if (id != null) store.deckId = id else toast(getString(R.string.failed, name))
                     draw()
@@ -178,10 +178,6 @@ class MainActivity : Activity() {
             }
         }.setNegativeButton(R.string.cancel, null).show()
     }
-
-    private fun AnkiClient.addNewDeckOrNull(name: String): Long? = runCatching {
-        com.ichi2.anki.api.AddContentApi(this@MainActivity).addNewDeck(name)
-    }.getOrNull()
 
     private fun chooseModel() {
         thread {

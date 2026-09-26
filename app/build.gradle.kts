@@ -47,7 +47,10 @@ android {
     buildTypes {
         debug { applicationIdSuffix = ".debug" }
         release {
-            isMinifyEnabled = false
+            // R8 removes unused code and resources. F-Droid asks for it.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             if (signingReady) signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -58,17 +61,11 @@ android {
     }
     buildFeatures { buildConfig = true }
 
-    lint {
-        // The AnkiDroid API library ships the lint rules of the AnkiDroid app itself. This one
-        // wants the clock of the Anki collection; this app has no collection.
-        disable += "DirectSystemCurrentTimeMillisUsage"
-    }
 }
 
 dependencies {
     implementation(project(":core"))
     implementation(libs.androidx.core.ktx)
-    implementation(libs.ankidroid.api)
 
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)
