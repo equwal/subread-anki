@@ -457,6 +457,29 @@ class ScansTest {
         assertEquals(Scan("食べた", 0, "食べた", false, 3), Scans.resolve("食べた", null, null, view = Around("犬だ。", 0, 1)))
     }
 
+    /** A dictionary sends 食べる for a selection of 魚を食べた: the bold is 食べた, not the whole selection. */
+    @Test
+    fun theBoldIsTheTermInTheSelection() {
+        val line = "猫が魚を食べた。"
+        val selection = line.indexOf("魚")
+        // SubRead Dictionary knows 食べた as the term 食べる, 3 characters from 食.
+        val dictionary = { at: Int -> if (at == line.indexOf("食")) 3 else null }
+        assertEquals(4..6, Scans.wordIn(line, selection, 5, "食べる", dictionary))
+        assertEquals("the word itself", 4..6, Scans.wordIn(line, selection, 5, "食べた") { null })
+        assertEquals("no term: the selection", selection until selection + 5, Scans.wordIn(line, selection, 5, "飲む") { null })
+        assertEquals("a term past the selection does not count", selection until selection + 2, Scans.wordIn(line, selection, 2, "食べる", dictionary))
+    }
+
+    @Test
+    fun theBoldIsInTheSelection() = property {
+        checkAll(piece, Arb.int(0..10), Arb.int(1..10), piece.orNull(0.3), Arb.int(0..10)) { text, start, length, word, termStart ->
+            if (start >= text.length) return@checkAll
+            val range = Scans.wordIn(text, start, length, word) { at -> if (at == termStart) 2 else null }
+            val end = minOf(start + length, text.length)
+            assertTrue("$range in $start until $end", range.first >= start && range.last < end && !range.isEmpty())
+        }
+    }
+
     /** The selection in the text of the scan is the selection of the row or the view, whatever the order of the sources. */
     @Test
     fun theSelectionOfTheScanIsTheSelectionOfItsSource() = property {

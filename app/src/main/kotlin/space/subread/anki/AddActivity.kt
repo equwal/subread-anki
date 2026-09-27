@@ -191,8 +191,15 @@ class AddActivity : Activity() {
                 val word = scan.word
                 val length = scan.length.takeIf { it > 0 } ?: word?.length ?: 0
                 val card = if (request.definition != null) {
-                    if (scan.offset >= 0 && length > 0) Miner.card(request, scan.text, scan.offset, length, null)
-                    else Miner.card(request, scan.text, -1, 0, null)
+                    if (scan.offset >= 0 && length > 0) {
+                        // The selection can be longer than the word of the dictionary: find the word in it, for the bold.
+                        val range = Scans.wordIn(scan.text, scan.offset, length, word) { at ->
+                            DictionaryClient.lookup(this, scan.text, at).firstOrNull { it.expression == word }?.length
+                        }
+                        Miner.card(request, scan.text, range.first, range.count(), null)
+                    } else {
+                        Miner.card(request, scan.text, -1, 0, null)
+                    }
                 } else if (scan.offset >= 0) {
                     val entry = DictionaryClient.lookup(this, scan.text, scan.offset).firstOrNull()
                     if (entry != null) {
@@ -340,6 +347,8 @@ class AddActivity : Activity() {
 
     /** Shows the picture and the sound of the card as they are now. From any thread: it reads them on the work thread. */
     private fun showMedia() {
+        // A callback that comes after the pop-up closed: the work thread stopped, and nothing shows.
+        if (work.isShutdown) return
         work.execute {
             val grabbed = runCatching { grab?.get() }.getOrNull()
             val picture = grabbed?.picture
@@ -424,7 +433,7 @@ class AddActivity : Activity() {
         work.execute {
             val sound = runCatching { grab?.get() }.getOrNull()?.sentenceAudio
             runOnUiThread {
-                if (sound == null) return@runOnUiThread
+                if (sound == null || isFinishing || isDestroyed) return@runOnUiThread
                 playFile(sound, sentence = true)
                 showMedia()
             }
@@ -644,6 +653,8 @@ class AddActivity : Activity() {
         thread {
             val bytes = DictionaryClient.audio(this, ask)
             runOnUiThread {
+                // The pop-up closed while the dictionary looked for the audio: nothing plays.
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 if (bytes == null) {
                     toast(getString(R.string.no_audio))
                     return@runOnUiThread

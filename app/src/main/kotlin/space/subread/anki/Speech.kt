@@ -19,7 +19,9 @@ class Speech(private val context: Context) {
     fun synthesize(text: String, file: File, japanese: Boolean, timeoutMs: Long = 20_000): Boolean {
         val ready = CountDownLatch(1)
         var started = false
-        val tts = TextToSpeech(context) { status ->
+        // The context of the app, not of the pop-up: the pop-up can close while the voice reads.
+        // Android then unbinds the services of the pop-up, and the voice of this call with them.
+        val tts = TextToSpeech(context.applicationContext) { status ->
             started = status == TextToSpeech.SUCCESS
             ready.countDown()
         }
@@ -47,7 +49,8 @@ class Speech(private val context: Context) {
             if (queued != TextToSpeech.SUCCESS || !done.await(timeoutMs, TimeUnit.MILLISECONDS)) return false
             return success && file.length() > 0
         } finally {
-            tts.shutdown()
+            // A voice that Android unbound already throws here. The file is written or not: the card goes on.
+            runCatching { tts.shutdown() }
         }
     }
 }

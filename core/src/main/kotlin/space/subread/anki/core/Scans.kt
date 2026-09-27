@@ -72,6 +72,25 @@ object Scans {
     }
 
     /**
+     * Where the word of a card is in [text], for the bold, when the user selected the characters
+     * from [start], [length] of them, and a dictionary sent the card with the term [word] in its
+     * dictionary form: 食べる for a selection of 魚を食べた. The word itself when it is in the
+     * selection; else the term that [termAt] finds (the length of [word] as a term that starts at
+     * an index of the text, or null); else the whole selection.
+     */
+    fun wordIn(text: String, start: Int, length: Int, word: String?, termAt: (Int) -> Int?): IntRange {
+        val end = (start + length).coerceAtMost(text.length)
+        if (word.isNullOrEmpty() || start < 0 || start >= end) return start until end
+        val plain = text.indexOf(word, start)
+        if (plain >= 0 && plain + word.length <= end) return plain until plain + word.length
+        for (at in start until end) {
+            val n = termAt(at) ?: continue
+            if (n > 0 && at + n <= end) return at until at + n
+        }
+        return start until end
+    }
+
+    /**
      * The sentence of the card for a word that starts at [start] and is [length] characters
      * long: the sentence of [text] around it, and where the word starts in it. The sentence is
      * empty when the text is the word alone: a word is no sentence.
