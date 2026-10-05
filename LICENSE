@@ -660,3 +660,14 @@ if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
 
+Contextual Copyleft AI (CCAI) Clause
+Added 2026-10-04.
+If this software is used to train, fine-tune, or otherwise generate any machine learning model or generative AI
+system, any resulting model, dataset, or system must be released under terms no more restrictive than this license.
+This includes the requirement to make available the training code, a description of the data used in training, and
+the model’s parameters and architecture. Providing access to such a model or its outputs via a network is
+considered distribution and triggers this obligation.
+
+Paper: https://arxiv.org/pdf/2507.12713
+Mirror: https://dickt.store/fuckai.pdf
+Copy: ccai-2507.12713.pdf (Shanklin, Hine, Novelli, Schroder and Floridi, CC BY-NC-SA 4.0)
